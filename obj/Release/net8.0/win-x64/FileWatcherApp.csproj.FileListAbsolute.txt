@@ -199,3 +199,4 @@
 /home/ynz/Documentos/FileWatcherApp/obj/Release/net8.0/win-x64/FileWatcherApp.pdb
 /home/ynz/Documentos/FileWatcherApp/obj/Release/net8.0/win-x64/FileWatcherApp.genruntimeconfig.cache
 /home/ynz/Documentos/FileWatcherApp/obj/Release/net8.0/win-x64/ref/FileWatcherApp.dll
+/home/ynz/Documentos/FileWatcherApp/obj/Release/net8.0/win-x64/FileWatcherApp.sourcelink.json
