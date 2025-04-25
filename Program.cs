@@ -16,8 +16,8 @@ namespace FileMonitor
     class Program
     {
         // Configurações
-        private static readonly string LaserDir = @"/home/ynz/Laser";
-        private static readonly string FacasDir = @"/home/ynz/Laser/FacasOk";
+        private static readonly string LaserDir = @"D:\Laser";
+        private static readonly string FacasDir = @"D:\Laser\FACAS OK";
 
         private static readonly RabbitMQConfig MqConfig = new RabbitMQConfig
         {
