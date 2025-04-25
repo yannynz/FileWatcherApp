@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using TimeZoneInfo = System.TimeZoneInfo;
 
 namespace FileMonitor
@@ -15,12 +16,12 @@ namespace FileMonitor
     class Program
     {
         // Configurações
-        private static readonly string LaserDir = @"D:\Laser";
-        private static readonly string FacasDir = @"D:\Laser\FACAS OK";
+        private static readonly string LaserDir = @"/home/ynz/Laser";
+        private static readonly string FacasDir = @"/home/ynz/Laser/FacasOk";
 
         private static readonly RabbitMQConfig MqConfig = new RabbitMQConfig
         {
-            Host = "192.168.10.13",
+            Host = "localhost",
             Port = 5672,
             VirtualHost = "/",
             UserName = "guest",
@@ -42,6 +43,15 @@ namespace FileMonitor
             Password = MqConfig.Password,
             AutomaticRecoveryEnabled = true
         };
+
+        // Regex unificado para nomes: tipo (NR|CL), dígitos, cliente (só letras), ignora o resto, '_' + cor
+        private static readonly Regex UnifiedRegex = new Regex(
+            @"^(NR|CL)(\d+)([A-ZÀ-Ú]+).*?(VERMELHO|AMARELO|AZUL|VERDE).*?(?:\.CNC)?$",
+            RegexOptions.IgnoreCase
+        );
+
+        // Palavras reservadas que desconsideram o arquivo
+        private static readonly string[] ReservedWords = { "modelo", "femea", "macho" };
 
         static void Main(string[] args)
         {
@@ -81,6 +91,16 @@ namespace FileMonitor
             if (Directory.Exists(e.FullPath)) return;
 
             var fileInfo = new FileInfo(e.FullPath);
+            var original = fileInfo.Name;
+            var cleanName = CleanFileName(original);
+
+            // Se retornou null ou vazio, ignora arquivos reservados ou inválidos
+            if (string.IsNullOrEmpty(cleanName))
+            {
+                Console.WriteLine($"Arquivo '{original}' ignorado por conter palavra reservada ou formato inválido.");
+                return;
+            }
+
             var retryPolicy = new RetryPolicy(maxRetries: 3, initialDelay: TimeSpan.FromSeconds(2));
 
             try
@@ -91,7 +111,7 @@ namespace FileMonitor
 
                     var message = new
                     {
-                        file_name = fileInfo.Name,
+                        file_name = cleanName,
                         path = fileInfo.FullName,
                         timestamp = GetSaoPauloTimestamp()
                     };
@@ -105,16 +125,41 @@ namespace FileMonitor
             }
         }
 
+        /// <summary>
+        /// Limpa o nome do arquivo para o formato NR123456CLIENTE_PRIORIDADE.CNC
+        /// utilizando regex unificado e removendo caracteres extras.
+        /// </summary>
+        private static string CleanFileName(string name)
+        {
+            var upper = name.Trim().ToUpperInvariant();
+
+            // Ignora se contiver palavras reservadas
+            foreach (var rw in ReservedWords)
+            {
+                if (upper.Contains(rw.ToUpperInvariant()))
+                    return null;
+            }
+
+            // Usa regex unificado
+            var m = UnifiedRegex.Match(upper);
+            if (!m.Success)
+                return null;
+
+            var tipo     = m.Groups[1].Value.ToUpperInvariant();
+            var numero   = m.Groups[2].Value;
+            var client   = m.Groups[3].Value.Replace(".", string.Empty).Replace(",", string.Empty);
+            var priority = m.Groups[4].Value.ToUpperInvariant();
+
+            return $"{tipo}{numero}{client}_{priority}.CNC";
+        }
+
         private static double GetSaoPauloTimestamp()
         {
             var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, SaoPauloTimeZone);
             var dateTimeOffset = new DateTimeOffset(now);
 
-            // Obter ticks desde a época Unix
-            long ticks = dateTimeOffset.ToUnixTimeMilliseconds() * 10_000; // Converter para ticks de 100-ns
-            double secondsSinceEpoch = ticks / (double)TimeSpan.TicksPerSecond;
-
-            return secondsSinceEpoch;
+            long ticks = dateTimeOffset.ToUnixTimeMilliseconds() * 10_000;
+            return ticks / (double)TimeSpan.TicksPerSecond;
         }
 
         private static void SendToRabbitMQ(string queueName, object message)
@@ -143,52 +188,53 @@ namespace FileMonitor
                 Console.WriteLine($"Mensagem enviada para {queueName}: {JsonSerializer.Serialize(message)}");
             }
         }
-    }
 
-    public class RetryPolicy
-    {
-        private readonly int _maxRetries;
-        private readonly TimeSpan _initialDelay;
-
-        public RetryPolicy(int maxRetries, TimeSpan initialDelay)
+        public class RetryPolicy
         {
-            _maxRetries = maxRetries;
-            _initialDelay = initialDelay;
-        }
+            private readonly int _maxRetries;
+            private readonly TimeSpan _initialDelay;
 
-        public int MaxRetries => _maxRetries;
-
-        public async Task ExecuteAsync(Func<Task> action)
-        {
-            int retryCount = 0;
-            while (true)
+            public RetryPolicy(int maxRetries, TimeSpan initialDelay)
             {
-                try
-                {
-                    await action();
-                    return;
-                }
-                catch (BrokerUnreachableException ex)
-                {
-                    if (retryCount >= _maxRetries)
-                        throw;
+                _maxRetries = maxRetries;
+                _initialDelay = initialDelay;
+            }
 
-                    var delay = _initialDelay * Math.Pow(2, retryCount);
-                    Console.WriteLine($"Tentativa {retryCount + 1} falhou. Nova tentativa em {delay.TotalSeconds} segundos.");
-                    await Task.Delay(delay);
-                    retryCount++;
+            public int MaxRetries => _maxRetries;
+
+            public async Task ExecuteAsync(Func<Task> action)
+            {
+                int retryCount = 0;
+                while (true)
+                {
+                    try
+                    {
+                        await action();
+                        return;
+                    }
+                    catch (BrokerUnreachableException ex)
+                    {
+                        if (retryCount >= _maxRetries)
+                            throw;
+
+                        var delay = TimeSpan.FromTicks((long)(_initialDelay.Ticks * Math.Pow(2, retryCount)));
+                        Console.WriteLine($"Tentativa {retryCount + 1} falhou. Nova tentativa em {delay.TotalSeconds} segundos.");
+                        await Task.Delay(delay);
+                        retryCount++;
+                    }
                 }
             }
         }
-    }
 
-    public class RabbitMQConfig
-    {
-        public string Host { get; set; }
-        public int Port { get; set; }
-        public string VirtualHost { get; set; }
-        public string UserName { get; set; }
-        public string Password { get; set; }
-        public Dictionary<string, string> QueueNames { get; set; }
+        public class RabbitMQConfig
+        {
+            public string Host { get; set; }
+            public int Port { get; set; }
+            public string VirtualHost { get; set; }
+            public string UserName { get; set; }
+            public string Password { get; set; }
+            public Dictionary<string, string> QueueNames { get; set; }
+        }
     }
 }
+

@@ -20,3 +20,4 @@
 /home/ynz/Documentos/FileWatcherApp/obj/Debug/net8.0/FileWatcherApp.pdb
 /home/ynz/Documentos/FileWatcherApp/obj/Debug/net8.0/FileWatcherApp.genruntimeconfig.cache
 /home/ynz/Documentos/FileWatcherApp/obj/Debug/net8.0/ref/FileWatcherApp.dll
+/home/ynz/Documentos/FileWatcherApp/obj/Debug/net8.0/FileWatcherApp.sourcelink.json

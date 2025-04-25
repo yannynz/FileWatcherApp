@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "qBhSDdM8/CY=",
+  "dgSpecHash": "TN8L3yYHXwY=",
   "success": true,
   "projectFilePath": "/home/ynz/Documentos/FileWatcherApp/FileWatcherApp.csproj",
   "expectedPackageFiles": [
@@ -10,10 +10,7 @@
     "/home/ynz/.nuget/packages/system.memory/4.5.5/system.memory.4.5.5.nupkg.sha512",
     "/home/ynz/.nuget/packages/system.text.encodings.web/9.0.3/system.text.encodings.web.9.0.3.nupkg.sha512",
     "/home/ynz/.nuget/packages/system.text.json/9.0.3/system.text.json.9.0.3.nupkg.sha512",
-    "/home/ynz/.nuget/packages/system.threading.channels/7.0.0/system.threading.channels.7.0.0.nupkg.sha512",
-    "/home/ynz/.nuget/packages/microsoft.netcore.app.runtime.win-x64/8.0.13/microsoft.netcore.app.runtime.win-x64.8.0.13.nupkg.sha512",
-    "/home/ynz/.nuget/packages/microsoft.aspnetcore.app.runtime.win-x64/8.0.13/microsoft.aspnetcore.app.runtime.win-x64.8.0.13.nupkg.sha512",
-    "/home/ynz/.nuget/packages/microsoft.netcore.app.host.win-x64/8.0.13/microsoft.netcore.app.host.win-x64.8.0.13.nupkg.sha512"
+    "/home/ynz/.nuget/packages/system.threading.channels/7.0.0/system.threading.channels.7.0.0.nupkg.sha512"
   ],
   "logs": [
     {
@@ -23,8 +20,7 @@
       "message": "FileWatcherApp depende de RabbitMQ.Client (>= 6.6.1), mas RabbitMQ.Client 6.6.1 não foi encontrado. A melhor correspondência aproximada de RabbitMQ.Client 6.7.0 foi resolvida.",
       "libraryId": "RabbitMQ.Client",
       "targetGraphs": [
-        "net8.0",
-        "net8.0/win-x64"
+        "net8.0"
       ]
     }
   ]
