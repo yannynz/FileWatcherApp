@@ -21,7 +21,7 @@ namespace FileMonitor
 
         private static readonly RabbitMQConfig MqConfig = new RabbitMQConfig
         {
-            Host = "localhost",
+            Host = "192.168.10.13",
             Port = 5672,
             VirtualHost = "/",
             UserName = "guest",
