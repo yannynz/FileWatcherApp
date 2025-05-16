@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,7 +16,12 @@ namespace FileMonitor
 {
     class Program
     {
-        // Configurações
+        private static FileSystemWatcher laserWatcher;
+        private static FileSystemWatcher facasWatcher;
+
+        private static IConnection persistentConnection;
+        private static IModel persistentChannel;
+
         private static readonly string LaserDir = @"D:\Laser";
         private static readonly string FacasDir = @"D:\Laser\FACAS OK";
 
@@ -34,6 +40,7 @@ namespace FileMonitor
         };
 
         private static readonly TimeZoneInfo SaoPauloTimeZone = TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
+
         private static readonly ConnectionFactory RabbitMqFactory = new ConnectionFactory
         {
             HostName = MqConfig.Host,
@@ -41,22 +48,23 @@ namespace FileMonitor
             VirtualHost = MqConfig.VirtualHost,
             UserName = MqConfig.UserName,
             Password = MqConfig.Password,
-            AutomaticRecoveryEnabled = true
+            AutomaticRecoveryEnabled = true,
+            DispatchConsumersAsync = true
         };
 
-        // Regex unificado para nomes: tipo (NR|CL), dígitos, cliente (só letras), ignora o resto, '_' + cor
         private static readonly Regex UnifiedRegex = new Regex(
             @"^(NR|CL)(\d+)([A-ZÀ-Ú]+).*?(VERMELHO|AMARELO|AZUL|VERDE).*?(?:\.CNC)?$",
             RegexOptions.IgnoreCase
         );
 
-        // Palavras reservadas que desconsideram o arquivo
-        private static readonly string[] ReservedWords = { "modelo", "femea", "macho" };
+        private static readonly string[] ReservedWords = { "modelo", "femea", "macho", "borracha" };
 
         static void Main(string[] args)
         {
-            var laserWatcher = CreateFileWatcher(LaserDir, MqConfig.QueueNames["Laser"]);
-            var facasWatcher = CreateFileWatcher(FacasDir, MqConfig.QueueNames["Facas"]);
+            SetupRabbitMQ();
+
+            laserWatcher = CreateFileWatcher(LaserDir, MqConfig.QueueNames["Laser"]);
+            facasWatcher = CreateFileWatcher(FacasDir, MqConfig.QueueNames["Facas"]);
 
             Console.WriteLine("Monitoramento iniciado. Pressione CTRL+C para sair.");
             using (var resetEvent = new ManualResetEvent(false))
@@ -65,10 +73,37 @@ namespace FileMonitor
                 {
                     e.Cancel = true;
                     resetEvent.Set();
+
                     laserWatcher.Dispose();
                     facasWatcher.Dispose();
+                    persistentChannel?.Close();
+                    persistentConnection?.Close();
                 };
                 resetEvent.WaitOne();
+            }
+        }
+
+        private static void SetupRabbitMQ()
+        {
+            try
+            {
+                persistentConnection = RabbitMqFactory.CreateConnection();
+                persistentChannel = persistentConnection.CreateModel();
+
+                foreach (var queue in MqConfig.QueueNames.Values)
+                {
+                    persistentChannel.QueueDeclare(
+                        queue: queue,
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false,
+                        arguments: null);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erro ao estabelecer conexão persistente com RabbitMQ: {ex.Message}");
+                Environment.Exit(1);
             }
         }
 
@@ -79,10 +114,17 @@ namespace FileMonitor
                 Path = path,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime,
                 Filter = "*.*",
+                InternalBufferSize = 64 * 1024, 
                 EnableRaisingEvents = true
             };
 
             watcher.Created += async (sender, e) => await HandleNewFile(e, queueName);
+
+            watcher.Error += (s, e) =>
+            {
+                Console.WriteLine($"Erro no FileSystemWatcher em '{path}': {e.GetException().Message}");
+            };
+
             return watcher;
         }
 
@@ -94,7 +136,6 @@ namespace FileMonitor
             var original = fileInfo.Name;
             var cleanName = CleanFileName(original);
 
-            // Se retornou null ou vazio, ignora arquivos reservados ou inválidos
             if (string.IsNullOrEmpty(cleanName))
             {
                 Console.WriteLine($"Arquivo '{original}' ignorado por conter palavra reservada ou formato inválido.");
@@ -107,7 +148,7 @@ namespace FileMonitor
             {
                 await retryPolicy.ExecuteAsync(async () =>
                 {
-                    await Task.Delay(100); // Pequeno delay para garantir disponibilidade do arquivo
+                    await Task.Delay(100);
 
                     var message = new
                     {
@@ -125,29 +166,23 @@ namespace FileMonitor
             }
         }
 
-        /// <summary>
-        /// Limpa o nome do arquivo para o formato NR123456CLIENTE_PRIORIDADE.CNC
-        /// utilizando regex unificado e removendo caracteres extras.
-        /// </summary>
         private static string CleanFileName(string name)
         {
             var upper = name.Trim().ToUpperInvariant();
 
-            // Ignora se contiver palavras reservadas
             foreach (var rw in ReservedWords)
             {
                 if (upper.Contains(rw.ToUpperInvariant()))
                     return null;
             }
 
-            // Usa regex unificado
             var m = UnifiedRegex.Match(upper);
             if (!m.Success)
                 return null;
 
-            var tipo     = m.Groups[1].Value.ToUpperInvariant();
-            var numero   = m.Groups[2].Value;
-            var client   = m.Groups[3].Value.Replace(".", string.Empty).Replace(",", string.Empty);
+            var tipo = m.Groups[1].Value.ToUpperInvariant();
+            var numero = m.Groups[2].Value;
+            var client = m.Groups[3].Value.Replace(".", string.Empty).Replace(",", string.Empty);
             var priority = m.Groups[4].Value.ToUpperInvariant();
 
             return $"{tipo}{numero}{client}_{priority}.CNC";
@@ -164,28 +199,24 @@ namespace FileMonitor
 
         private static void SendToRabbitMQ(string queueName, object message)
         {
-            using (var connection = RabbitMqFactory.CreateConnection())
-            using (var channel = connection.CreateModel())
+            try
             {
-                channel.QueueDeclare(
-                    queue: queueName,
-                    durable: true,
-                    exclusive: false,
-                    autoDelete: false,
-                    arguments: null);
-
                 var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
 
-                var properties = channel.CreateBasicProperties();
+                var properties = persistentChannel.CreateBasicProperties();
                 properties.Persistent = true;
 
-                channel.BasicPublish(
+                persistentChannel.BasicPublish(
                     exchange: "",
                     routingKey: queueName,
                     basicProperties: properties,
                     body: body);
 
                 Console.WriteLine($"Mensagem enviada para {queueName}: {JsonSerializer.Serialize(message)}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erro ao enviar mensagem para RabbitMQ: {ex.Message}");
             }
         }
 
@@ -237,4 +268,3 @@ namespace FileMonitor
         }
     }
 }
-

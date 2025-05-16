@@ -179,7 +179,7 @@
 /home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/win-x64/publish/hostfxr.dll
 /home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/win-x64/publish/hostpolicy.dll
 /home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/win-x64/publish/mscordaccore.dll
-/home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/win-x64/publish/mscordaccore_amd64_amd64_8.0.1525.16413.dll
+/home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/win-x64/publish/mscordaccore_amd64_amd64_8.0.1625.21506.dll
 /home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/win-x64/publish/mscordbi.dll
 /home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/win-x64/publish/mscorrc.dll
 /home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/win-x64/publish/msquic.dll

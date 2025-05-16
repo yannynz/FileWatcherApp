@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "1pg4qVC6b84=",
+  "dgSpecHash": "SWbNchLBfrE=",
   "success": true,
   "projectFilePath": "/home/ynz/Documentos/FileWatcherApp/FileWatcherApp.csproj",
   "expectedPackageFiles": [
@@ -11,9 +11,9 @@
     "/home/ynz/.nuget/packages/system.text.encodings.web/9.0.3/system.text.encodings.web.9.0.3.nupkg.sha512",
     "/home/ynz/.nuget/packages/system.text.json/9.0.3/system.text.json.9.0.3.nupkg.sha512",
     "/home/ynz/.nuget/packages/system.threading.channels/7.0.0/system.threading.channels.7.0.0.nupkg.sha512",
-    "/home/ynz/.nuget/packages/microsoft.netcore.app.runtime.win-x64/8.0.15/microsoft.netcore.app.runtime.win-x64.8.0.15.nupkg.sha512",
-    "/home/ynz/.nuget/packages/microsoft.aspnetcore.app.runtime.win-x64/8.0.15/microsoft.aspnetcore.app.runtime.win-x64.8.0.15.nupkg.sha512",
-    "/home/ynz/.nuget/packages/microsoft.netcore.app.host.win-x64/8.0.15/microsoft.netcore.app.host.win-x64.8.0.15.nupkg.sha512"
+    "/home/ynz/.nuget/packages/microsoft.netcore.app.runtime.win-x64/8.0.16/microsoft.netcore.app.runtime.win-x64.8.0.16.nupkg.sha512",
+    "/home/ynz/.nuget/packages/microsoft.aspnetcore.app.runtime.win-x64/8.0.16/microsoft.aspnetcore.app.runtime.win-x64.8.0.16.nupkg.sha512",
+    "/home/ynz/.nuget/packages/microsoft.netcore.app.host.win-x64/8.0.16/microsoft.netcore.app.host.win-x64.8.0.16.nupkg.sha512"
   ],
   "logs": [
     {
