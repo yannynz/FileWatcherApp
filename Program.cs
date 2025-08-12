@@ -20,7 +20,7 @@ namespace FileMonitor
 
         private static readonly string LaserDir = @"D:\Laser";
         private static readonly string FacasDir = @"D:\Laser\FACAS OK";
-        private static readonly string DobrasDir = @"D:\Facas para Dobrar";
+        private static readonly string DobrasDir = @"D:\Dobradeira\Facas para Dobrar";
 
         private static readonly RabbitMQConfig MqConfig = new RabbitMQConfig
         {
