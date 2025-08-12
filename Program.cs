@@ -1,16 +1,10 @@
-﻿using System;
-using System.IO;
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using RabbitMQ.Client;
-using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Globalization;
 using System.Text.RegularExpressions;
 using TimeZoneInfo = System.TimeZoneInfo;
+using System.Collections.Concurrent;
 
 namespace FileMonitor
 {
@@ -18,12 +12,15 @@ namespace FileMonitor
     {
         private static FileSystemWatcher laserWatcher;
         private static FileSystemWatcher facasWatcher;
+        private static FileSystemWatcher dobrarWatcher;
+
 
         private static IConnection persistentConnection;
         private static IModel persistentChannel;
 
         private static readonly string LaserDir = @"D:\Laser";
         private static readonly string FacasDir = @"D:\Laser\FACAS OK";
+        private static readonly string DobrasDir = @"D:\Facas para Dobrar";
 
         private static readonly RabbitMQConfig MqConfig = new RabbitMQConfig
         {
@@ -35,7 +32,8 @@ namespace FileMonitor
             QueueNames = new Dictionary<string, string>
             {
                 { "Laser", "laser_notifications" },
-                { "Facas", "facas_notifications" }
+                { "Facas", "facas_notifications" },
+                { "Dobra", "dobra_notifications" }
             }
         };
 
@@ -53,11 +51,19 @@ namespace FileMonitor
         };
 
         private static readonly Regex UnifiedRegex = new Regex(
-            @"^(NR|CL)(\d+)([A-ZÀ-Ú]+).*?(VERMELHO|AMARELO|AZUL|VERDE).*?(?:\.CNC)?$",
+            @"^(NR|CL)(\d+)([A-ZÀ-Ú]+).*?(VERMELHO|LARANJA|AMARELO|AZUL|VERDE).*?(?:\.CNC)?$",
+            RegexOptions.IgnoreCase
+        );
+
+        private static readonly Regex DobrasRegex = new Regex(
+            @"^NR\s*(\d+)\.(M\.DXF|DXF\.FCD)$",
             RegexOptions.IgnoreCase
         );
 
         private static readonly string[] ReservedWords = { "modelo", "femea", "macho", "borracha" };
+
+        private static readonly ConcurrentDictionary<string, DateTime> DobrasSeen = new ConcurrentDictionary<string, DateTime>();
+        private static readonly TimeSpan DobrasDedupWindow = TimeSpan.FromMinutes(2);
 
         static void Main(string[] args)
         {
@@ -65,6 +71,8 @@ namespace FileMonitor
 
             laserWatcher = CreateFileWatcher(LaserDir, MqConfig.QueueNames["Laser"]);
             facasWatcher = CreateFileWatcher(FacasDir, MqConfig.QueueNames["Facas"]);
+            dobrarWatcher = CreateDobrasWatcher(DobrasDir, MqConfig.QueueNames["Dobra"]);
+
 
             Console.WriteLine("Monitoramento iniciado. Pressione CTRL+C para sair.");
             using (var resetEvent = new ManualResetEvent(false))
@@ -76,6 +84,7 @@ namespace FileMonitor
 
                     laserWatcher.Dispose();
                     facasWatcher.Dispose();
+                    dobrarWatcher?.Dispose();
                     persistentChannel?.Close();
                     persistentConnection?.Close();
                 };
@@ -114,7 +123,7 @@ namespace FileMonitor
                 Path = path,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime,
                 Filter = "*.*",
-                InternalBufferSize = 64 * 1024, 
+                InternalBufferSize = 64 * 1024,
                 EnableRaisingEvents = true
             };
 
@@ -127,6 +136,28 @@ namespace FileMonitor
 
             return watcher;
         }
+
+        private static FileSystemWatcher CreateDobrasWatcher(string path, string queueName)
+        {
+            var watcher = new FileSystemWatcher
+            {
+                Path = path,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime,
+                Filter = "*.*",
+                InternalBufferSize = 64 * 1024,
+                EnableRaisingEvents = true
+            };
+
+            watcher.Created += async (sender, e) => await HandleDobrasFile(e, queueName);
+
+            watcher.Error += (s, e) =>
+            {
+                Console.WriteLine($"Erro no FileSystemWatcher em '{path}': {e.GetException().Message}");
+            };
+
+            return watcher;
+        }
+
 
         private static async Task HandleNewFile(FileSystemEventArgs e, string queueName)
         {
@@ -165,6 +196,112 @@ namespace FileMonitor
                 Console.WriteLine($"Erro após {retryPolicy.MaxRetries} tentativas: {ex.Message}");
             }
         }
+
+        private static async Task HandleDobrasFile(FileSystemEventArgs e, string queueName)
+        {
+            if (Directory.Exists(e.FullPath)) return;
+
+            var fileInfo = new FileInfo(e.FullPath);
+            var originalUpper = fileInfo.Name.Trim().ToUpperInvariant();
+
+            // Ignora palavras reservadas, se aparecerem por algum motivo
+            foreach (var rw in ReservedWords)
+            {
+                if (originalUpper.Contains(rw.ToUpperInvariant()))
+                {
+                    Console.WriteLine($"[DOBRAS] Ignorado por palavra reservada: '{fileInfo.Name}'");
+                    return;
+                }
+            }
+
+            // Aceita apenas os padrões finais das máquinas de dobra
+            var m = DobrasRegex.Match(originalUpper);
+            if (!m.Success)
+            {
+                // Ignora DXF "simples" e CF2 (não são fim de dobra)
+                Console.WriteLine($"[DOBRAS] Ignorado por padrão não correspondente: '{fileInfo.Name}'");
+                return;
+            }
+
+            var nr = m.Groups[1].Value; // número do pedido
+
+            // Espera curta para garantir que o arquivo terminou de ser gravado
+            if (!await WaitFileReady(fileInfo.FullName, TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(200)))
+            {
+                Console.WriteLine($"[DOBRAS] Arquivo não ficou pronto a tempo: '{fileInfo.Name}'");
+                return;
+            }
+
+            // De-duplicação por janela (se vier .m.DXF e depois .DXF.FCD do mesmo NR)
+            var now = DateTime.UtcNow;
+            PruneDobrasSeen(now);
+            if (DobrasSeen.TryGetValue(nr, out var last) && now - last < DobrasDedupWindow)
+            {
+                Console.WriteLine($"[DOBRAS] Evento duplicado suprimido (NR={nr}) para '{fileInfo.Name}'");
+                return;
+            }
+            DobrasSeen.AddOrUpdate(nr, now, (_, __) => now);
+
+            var retryPolicy = new RetryPolicy(maxRetries: 3, initialDelay: TimeSpan.FromSeconds(2));
+
+            try
+            {
+                await retryPolicy.ExecuteAsync(async () =>
+                {
+                    await Task.Delay(50);
+
+                    // Envia no MESMO formato de mensagem (mesmas chaves),
+                    // usando o nome real do arquivo salvo pela máquina de dobra.
+                    var message = new
+                    {
+                        file_name = fileInfo.Name,
+                        path = fileInfo.FullName,
+                        timestamp = GetSaoPauloTimestamp()
+                    };
+
+                    SendToRabbitMQ(queueName, message);
+                    Console.WriteLine($"[DOBRAS] Mensagem publicada (NR={nr}) a partir de '{fileInfo.Name}'");
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DOBRAS] Erro após {retryPolicy.MaxRetries} tentativas: {ex.Message}");
+            }
+        }
+
+        private static async Task<bool> WaitFileReady(string fullPath, TimeSpan timeout, TimeSpan pollInterval)
+        {
+            var start = DateTime.UtcNow;
+            while (DateTime.UtcNow - start < timeout)
+            {
+                try
+                {
+                    using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.None))
+                    {
+                        if (stream.Length >= 0) return true;
+                    }
+                }
+                catch
+                {
+                    // ainda bloqueado
+                }
+                await Task.Delay(pollInterval);
+            }
+            return false;
+        }
+
+        // Limpa entradas antigas de de-duplicação
+        private static void PruneDobrasSeen(DateTime utcNow)
+        {
+            foreach (var kvp in DobrasSeen)
+            {
+                if (utcNow - kvp.Value > DobrasDedupWindow)
+                {
+                    DobrasSeen.TryRemove(kvp.Key, out _);
+                }
+            }
+        }
+
 
         private static string CleanFileName(string name)
         {
