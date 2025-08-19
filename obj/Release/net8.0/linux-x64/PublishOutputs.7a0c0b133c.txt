@@ -1,0 +1,2 @@
+/home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/linux-x64/publish/FileWatcherApp.pdb
+/home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/linux-x64/publish/FileWatcherApp

@@ -5,6 +5,8 @@ using RabbitMQ.Client.Exceptions;
 using System.Text.RegularExpressions;
 using TimeZoneInfo = System.TimeZoneInfo;
 using System.Collections.Concurrent;
+//using System.Runtime.InteropServices;
+
 
 namespace FileMonitor
 {
@@ -22,6 +24,13 @@ namespace FileMonitor
         private static readonly string FacasDir = @"D:\Laser\FACAS OK";
         private static readonly string DobrasDir = @"D:\Dobradeira\Facas para Dobrar";
 
+        //         private static readonly string LaserDir  =
+        //     RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/tmp/laser";
+        // private static readonly string FacasDir  =
+        //     RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/tmp/laser/FACAS OK";
+        // private static readonly string DobrasDir =
+        //     RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/tmp/dobras";
+        //
         private static readonly RabbitMQConfig MqConfig = new RabbitMQConfig
         {
             Host = "192.168.10.13",
@@ -36,9 +45,13 @@ namespace FileMonitor
                 { "Dobra", "dobra_notifications" }
             }
         };
-
         private static readonly TimeZoneInfo SaoPauloTimeZone = TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
 
+        //     private static readonly TimeZoneInfo SaoPauloTimeZone =
+        // RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+        // ? TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time")
+        // : TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+        //
         private static readonly ConnectionFactory RabbitMqFactory = new ConnectionFactory
         {
             HostName = MqConfig.Host,
@@ -60,7 +73,14 @@ namespace FileMonitor
             RegexOptions.IgnoreCase
         );
 
-        private static readonly string[] ReservedWords = { "modelo", "femea", "macho", "borracha" };
+        private static readonly Regex ToolingRegex = new Regex(
+            @"^NR(?<nr>\d+)(?<cliente>[A-Z0-9]+)_(?<sexo>MACHO|FEMEA)_(?<cor>[A-Z0-9]+)\.CNC$",
+            RegexOptions.IgnoreCase
+        );
+
+
+        private static readonly string[] ReservedWords = { "modelo", "borracha" };
+        private static readonly string DestacadorDir = Path.Combine(LaserDir, "DESTACADOR");
 
         private static readonly ConcurrentDictionary<string, DateTime> DobrasSeen = new ConcurrentDictionary<string, DateTime>();
         private static readonly TimeSpan DobrasDedupWindow = TimeSpan.FromMinutes(2);
@@ -127,7 +147,15 @@ namespace FileMonitor
                 EnableRaisingEvents = true
             };
 
-            watcher.Created += async (sender, e) => await HandleNewFile(e, queueName);
+            watcher.Created += async (sender, e) =>
+    {
+        // escolha do handler no momento do evento
+        var nameUpper = (e.Name ?? string.Empty).Trim().ToUpperInvariant();
+        if (ToolingRegex.IsMatch(nameUpper))
+            await HandleToolingFile(e, queueName);
+        else
+            await HandleNewFile(e, queueName);
+    };
 
             watcher.Error += (s, e) =>
             {
@@ -157,6 +185,46 @@ namespace FileMonitor
 
             return watcher;
         }
+
+        private static async Task HandleToolingFile(FileSystemEventArgs e, string queueName)
+        {
+            if (Directory.Exists(e.FullPath)) return;
+
+            var fileInfo = new FileInfo(e.FullPath);
+            var original = fileInfo.Name;
+
+            if (!await WaitFileReady(fileInfo.FullName, TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(200)))
+            {
+                Console.WriteLine($"[TOOLING] Arquivo não ficou pronto a tempo: '{original}'");
+                return;
+            }
+
+            var message = new
+            {
+                file_name = fileInfo.Name,   // mantém o nome ORIGINAL
+                path = fileInfo.FullName,
+                timestamp = GetSaoPauloTimestamp()
+            };
+
+            var retryPolicy = new RetryPolicy(maxRetries: 3, initialDelay: TimeSpan.FromSeconds(2));
+            try
+            {
+                await retryPolicy.ExecuteAsync(async () =>
+                {
+                    await Task.Delay(50);
+                    SendToRabbitMQ(queueName, message);
+                });
+
+                var fase = string.Equals(queueName, MqConfig.QueueNames["Facas"], StringComparison.OrdinalIgnoreCase)
+                    ? "CUT" : "NEW";
+                Console.WriteLine($"[TOOLING-{fase}] publicado em {queueName}: {original}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TOOLING] Erro após {retryPolicy.MaxRetries} tentativas: {ex.Message}");
+            }
+        }
+
 
 
         private static async Task HandleNewFile(FileSystemEventArgs e, string queueName)
