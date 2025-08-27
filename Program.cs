@@ -5,16 +5,19 @@ using RabbitMQ.Client.Exceptions;
 using System.Text.RegularExpressions;
 using TimeZoneInfo = System.TimeZoneInfo;
 using System.Collections.Concurrent;
-//using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 
 
 namespace FileMonitor
 {
     class Program
     {
+        private static readonly ConcurrentDictionary<string, System.Timers.Timer> OpDebouncers = new();
+
         private static FileSystemWatcher laserWatcher;
         private static FileSystemWatcher facasWatcher;
         private static FileSystemWatcher dobrarWatcher;
+        private static FileSystemWatcher opWatcher;
 
 
         private static IConnection persistentConnection;
@@ -23,14 +26,21 @@ namespace FileMonitor
         private static readonly string LaserDir = @"D:\Laser";
         private static readonly string FacasDir = @"D:\Laser\FACAS OK";
         private static readonly string DobrasDir = @"D:\Dobradeira\Facas para Dobrar";
+        private static readonly string OpsDir = @"D:\NR";
 
-        //         private static readonly string LaserDir  =
-        //     RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/tmp/laser";
-        // private static readonly string FacasDir  =
-        //     RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/tmp/laser/FACAS OK";
-        // private static readonly string DobrasDir =
-        //     RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/tmp/dobras";
-        //
+
+
+    //
+    //     private static readonly string LaserDir =
+    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/tmp/laser";
+    //     private static readonly string FacasDir =
+    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/tmp/laser/FACAS OK";
+    //     private static readonly string DobrasDir =
+    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/tmp/dobras";
+    //     private static readonly string OpsDir =
+    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\NR" : "/tmp/nr";
+
+
         private static readonly RabbitMQConfig MqConfig = new RabbitMQConfig
         {
             Host = "192.168.10.13",
@@ -42,16 +52,17 @@ namespace FileMonitor
             {
                 { "Laser", "laser_notifications" },
                 { "Facas", "facas_notifications" },
-                { "Dobra", "dobra_notifications" }
+                { "Dobra", "dobra_notifications" },
+                { "Ops", "op.imported" }
             }
         };
         private static readonly TimeZoneInfo SaoPauloTimeZone = TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
 
-        //     private static readonly TimeZoneInfo SaoPauloTimeZone =
-        // RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-        // ? TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time")
-        // : TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
-        //
+    //     private static readonly TimeZoneInfo SaoPauloTimeZone =
+    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+    // ? TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time")
+    // : TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+
         private static readonly ConnectionFactory RabbitMqFactory = new ConnectionFactory
         {
             HostName = MqConfig.Host,
@@ -62,6 +73,11 @@ namespace FileMonitor
             AutomaticRecoveryEnabled = true,
             DispatchConsumersAsync = true
         };
+
+        private static readonly Regex NumeroOpFromNameRegex = new Regex(
+            @"(?i)\bOrdem\s*de\s*Produ[cç][aã]o\s*n[ºo\.]?\s*(\d{4,})\b",
+            RegexOptions.Compiled
+        );
 
         private static readonly Regex UnifiedRegex = new Regex(
             @"^(NR|CL)(\d+)([A-ZÀ-Ú]+).*?(VERMELHO|LARANJA|AMARELO|AZUL|VERDE).*?(?:\.CNC)?$",
@@ -79,7 +95,7 @@ namespace FileMonitor
         );
 
 
-        private static readonly string[] ReservedWords = { "modelo", "borracha" };
+        private static readonly string[] ReservedWords = { "modelo", "borracha", "regua" };
         private static readonly string DestacadorDir = Path.Combine(LaserDir, "DESTACADOR");
 
         private static readonly ConcurrentDictionary<string, DateTime> DobrasSeen = new ConcurrentDictionary<string, DateTime>();
@@ -92,6 +108,8 @@ namespace FileMonitor
             laserWatcher = CreateFileWatcher(LaserDir, MqConfig.QueueNames["Laser"]);
             facasWatcher = CreateFileWatcher(FacasDir, MqConfig.QueueNames["Facas"]);
             dobrarWatcher = CreateDobrasWatcher(DobrasDir, MqConfig.QueueNames["Dobra"]);
+            opWatcher = CreateOpWatcher(OpsDir, MqConfig.QueueNames["Ops"]);
+
 
 
             Console.WriteLine("Monitoramento iniciado. Pressione CTRL+C para sair.");
@@ -107,6 +125,8 @@ namespace FileMonitor
                     dobrarWatcher?.Dispose();
                     persistentChannel?.Close();
                     persistentConnection?.Close();
+                    opWatcher?.Dispose();
+
                 };
                 resetEvent.WaitOne();
             }
@@ -185,6 +205,93 @@ namespace FileMonitor
 
             return watcher;
         }
+
+        private static FileSystemWatcher CreateOpWatcher(string path, string queueName)
+        {
+            var watcher = new FileSystemWatcher
+            {
+                Path = path,
+                Filter = "*.pdf",
+                IncludeSubdirectories = true,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
+                InternalBufferSize = 64 * 1024,
+                EnableRaisingEvents = true
+            };
+
+            FileSystemEventHandler handler = (sender, e) =>
+            {
+                // Debounce por arquivo (Changed pode disparar várias vezes durante a cópia)
+                var key = e.FullPath;
+                var timer = OpDebouncers.AddOrUpdate(key,
+                    _ => NewTimer(key, queueName),
+                    (_, t) => { t.Stop(); t.Start(); return t; });
+            };
+
+            watcher.Created += handler;
+            watcher.Changed += handler;
+            watcher.Renamed += (s, e) => handler(s, new FileSystemEventArgs(
+                WatcherChangeTypes.Changed, Path.GetDirectoryName(e.FullPath)!, Path.GetFileName(e.FullPath)!));
+
+            watcher.Error += (s, e) =>
+                Console.WriteLine($"Erro no FileSystemWatcher(OP) em '{path}': {e.GetException().Message}");
+
+            return watcher;
+
+            System.Timers.Timer NewTimer(string fullPath, string q)
+            {
+                var t = new System.Timers.Timer(1200) { AutoReset = false };
+                t.Elapsed += async (_, __) =>
+                {
+                    try { await HandleOpFile(fullPath, q); }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[OP] Erro ao processar '{fullPath}': {ex.Message}");
+                    }
+                    finally
+                    {
+                        OpDebouncers.TryRemove(fullPath, out System.Timers.Timer _removed);
+                        t.Dispose();
+                    }
+                };
+                t.Start();
+                return t;
+            }
+        }
+
+        private static async Task HandleOpFile(string fullPath, string queueName)
+        {
+            if (Directory.Exists(fullPath)) return;
+
+            // aguarda o arquivo “assentar”
+            if (!await WaitFileReady(fullPath, TimeSpan.FromSeconds(8), TimeSpan.FromMilliseconds(200)))
+            {
+                Console.WriteLine($"[OP] Arquivo não ficou pronto a tempo: '{fullPath}'");
+                return;
+            }
+
+            var parsed = PdfParser.Parse(fullPath);
+
+            // monta JSON da OP importada
+            var message = new
+            {
+                numeroOp = parsed.NumeroOp,
+                codigoProduto = parsed.CodigoProduto,
+                descricaoProduto = parsed.DescricaoProduto,
+                cliente = parsed.Cliente,
+                dataOp = parsed.DataOpIso,
+                materiais = parsed.Materiais,
+                emborrachada = parsed.Emborrachada,
+                sharePath = fullPath // JSON vai escapar as barras invertidas automaticamente
+            };
+
+            // publica na fila (modelo igual ao restante do seu app)
+            // (você pode trocar para exchange/routingKey depois, se quiser pub/sub)
+            SendToRabbitMQ(queueName, message);
+
+            Console.WriteLine($"[OP] Import publicada: {parsed.NumeroOp} (emborrachada={parsed.Emborrachada})");
+        }
+
+
 
         private static async Task HandleToolingFile(FileSystemEventArgs e, string queueName)
         {

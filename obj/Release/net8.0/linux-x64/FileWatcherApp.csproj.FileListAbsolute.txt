@@ -200,3 +200,10 @@
 /home/ynz/Documentos/FileWatcherApp/obj/Release/net8.0/linux-x64/FileWatcherApp.pdb
 /home/ynz/Documentos/FileWatcherApp/obj/Release/net8.0/linux-x64/FileWatcherApp.genruntimeconfig.cache
 /home/ynz/Documentos/FileWatcherApp/obj/Release/net8.0/linux-x64/ref/FileWatcherApp.dll
+/home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/linux-x64/UglyToad.PdfPig.Core.dll
+/home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/linux-x64/UglyToad.PdfPig.DocumentLayoutAnalysis.dll
+/home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/linux-x64/UglyToad.PdfPig.Fonts.dll
+/home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/linux-x64/UglyToad.PdfPig.Package.dll
+/home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/linux-x64/UglyToad.PdfPig.Tokenization.dll
+/home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/linux-x64/UglyToad.PdfPig.Tokens.dll
+/home/ynz/Documentos/FileWatcherApp/bin/Release/net8.0/linux-x64/UglyToad.PdfPig.dll
