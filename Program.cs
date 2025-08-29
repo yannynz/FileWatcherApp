@@ -30,11 +30,11 @@ namespace FileMonitor
 
 
 
-    //
+
     //     private static readonly string LaserDir =
     // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/tmp/laser";
     //     private static readonly string FacasDir =
-    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/tmp/laser/FACAS OK";
+    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/tmp/laser/FACASOK";
     //     private static readonly string DobrasDir =
     //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/tmp/dobras";
     //     private static readonly string OpsDir =
@@ -62,7 +62,7 @@ namespace FileMonitor
     // RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
     // ? TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time")
     // : TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
-
+    //
         private static readonly ConnectionFactory RabbitMqFactory = new ConnectionFactory
         {
             HostName = MqConfig.Host,
