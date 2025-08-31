@@ -6,7 +6,8 @@ using System.Text.RegularExpressions;
 using TimeZoneInfo = System.TimeZoneInfo;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
-
+using System.Diagnostics;
+using System.Linq;
 
 namespace FileMonitor
 {
@@ -19,7 +20,6 @@ namespace FileMonitor
         private static FileSystemWatcher dobrarWatcher;
         private static FileSystemWatcher opWatcher;
 
-
         private static IConnection persistentConnection;
         private static IModel persistentChannel;
 
@@ -28,18 +28,14 @@ namespace FileMonitor
         private static readonly string DobrasDir = @"D:\Dobradeira\Facas para Dobrar";
         private static readonly string OpsDir = @"D:\Laser\NR";
 
-
-
-
-    //     private static readonly string LaserDir =
-    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/tmp/laser";
-    //     private static readonly string FacasDir =
-    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/tmp/laser/FACASOK";
-    //     private static readonly string DobrasDir =
-    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/tmp/dobras";
-    //     private static readonly string OpsDir =
-    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\NR" : "/tmp/nr";
-
+        //     private static readonly string LaserDir =
+        // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/tmp/laser";
+        //     private static readonly string FacasDir =
+        //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/tmp/laser/FACASOK";
+        //     private static readonly string DobrasDir =
+        //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/tmp/dobras";
+        //     private static readonly string OpsDir =
+        // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\NR" : "/tmp/nr";
 
         private static readonly RabbitMQConfig MqConfig = new RabbitMQConfig
         {
@@ -56,13 +52,15 @@ namespace FileMonitor
                 { "Ops", "op.imported" }
             }
         };
-        private static readonly TimeZoneInfo SaoPauloTimeZone = TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
 
-    //     private static readonly TimeZoneInfo SaoPauloTimeZone =
-    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-    // ? TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time")
-    // : TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
-    //
+        private static readonly TimeZoneInfo SaoPauloTimeZone =
+            TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
+
+        //     private static readonly TimeZoneInfo SaoPauloTimeZone =
+        // RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+        // ? TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time")
+        // : TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+
         private static readonly ConnectionFactory RabbitMqFactory = new ConnectionFactory
         {
             HostName = MqConfig.Host,
@@ -94,23 +92,20 @@ namespace FileMonitor
             RegexOptions.IgnoreCase
         );
 
-
         private static readonly string[] ReservedWords = { "modelo", "borracha", "regua" };
         private static readonly string DestacadorDir = Path.Combine(LaserDir, "DESTACADOR");
 
-        private static readonly ConcurrentDictionary<string, DateTime> DobrasSeen = new ConcurrentDictionary<string, DateTime>();
+        private static readonly ConcurrentDictionary<string, DateTime> DobrasSeen = new();
         private static readonly TimeSpan DobrasDedupWindow = TimeSpan.FromMinutes(2);
 
         static void Main(string[] args)
         {
             SetupRabbitMQ();
 
-            laserWatcher = CreateFileWatcher(LaserDir, MqConfig.QueueNames["Laser"]);
-            facasWatcher = CreateFileWatcher(FacasDir, MqConfig.QueueNames["Facas"]);
+            laserWatcher  = CreateFileWatcher(LaserDir,  MqConfig.QueueNames["Laser"]);
+            facasWatcher  = CreateFileWatcher(FacasDir,  MqConfig.QueueNames["Facas"]);
             dobrarWatcher = CreateDobrasWatcher(DobrasDir, MqConfig.QueueNames["Dobra"]);
-            opWatcher = CreateOpWatcher(OpsDir, MqConfig.QueueNames["Ops"]);
-
-
+            opWatcher     = CreateOpWatcher(OpsDir,     MqConfig.QueueNames["Ops"]);
 
             Console.WriteLine("Monitoramento iniciado. Pressione CTRL+C para sair.");
             using (var resetEvent = new ManualResetEvent(false))
@@ -120,13 +115,13 @@ namespace FileMonitor
                     e.Cancel = true;
                     resetEvent.Set();
 
-                    laserWatcher.Dispose();
-                    facasWatcher.Dispose();
+                    laserWatcher?.Dispose();
+                    facasWatcher?.Dispose();
                     dobrarWatcher?.Dispose();
-                    persistentChannel?.Close();
-                    persistentConnection?.Close();
                     opWatcher?.Dispose();
 
+                    persistentChannel?.Close();
+                    persistentConnection?.Close();
                 };
                 resetEvent.WaitOne();
             }
@@ -168,14 +163,13 @@ namespace FileMonitor
             };
 
             watcher.Created += async (sender, e) =>
-    {
-        // escolha do handler no momento do evento
-        var nameUpper = (e.Name ?? string.Empty).Trim().ToUpperInvariant();
-        if (ToolingRegex.IsMatch(nameUpper))
-            await HandleToolingFile(e, queueName);
-        else
-            await HandleNewFile(e, queueName);
-    };
+            {
+                var nameUpper = (e.Name ?? string.Empty).Trim().ToUpperInvariant();
+                if (ToolingRegex.IsMatch(nameUpper))
+                    await HandleToolingFile(e, queueName);
+                else
+                    await HandleNewFile(e, queueName);
+            };
 
             watcher.Error += (s, e) =>
             {
@@ -220,7 +214,6 @@ namespace FileMonitor
 
             FileSystemEventHandler handler = (sender, e) =>
             {
-                // Debounce por arquivo (Changed pode disparar várias vezes durante a cópia)
                 var key = e.FullPath;
                 var timer = OpDebouncers.AddOrUpdate(key,
                     _ => NewTimer(key, queueName),
@@ -262,8 +255,8 @@ namespace FileMonitor
         {
             if (Directory.Exists(fullPath)) return;
 
-            // aguarda o arquivo “assentar”
-            if (!await WaitFileReady(fullPath, TimeSpan.FromSeconds(8), TimeSpan.FromMilliseconds(200)))
+            // aguarda o arquivo “assentar” com tamanho estável + teste de lock
+            if (!await WaitFileReady(fullPath, TimeSpan.FromSeconds(20), TimeSpan.FromMilliseconds(250), stableReads: 3))
             {
                 Console.WriteLine($"[OP] Arquivo não ficou pronto a tempo: '{fullPath}'");
                 return;
@@ -281,17 +274,12 @@ namespace FileMonitor
                 dataOp = parsed.DataOpIso,
                 materiais = parsed.Materiais,
                 emborrachada = parsed.Emborrachada,
-                sharePath = fullPath // JSON vai escapar as barras invertidas automaticamente
+                sharePath = fullPath
             };
 
-            // publica na fila (modelo igual ao restante do seu app)
-            // (você pode trocar para exchange/routingKey depois, se quiser pub/sub)
             SendToRabbitMQ(queueName, message);
-
             Console.WriteLine($"[OP] Import publicada: {parsed.NumeroOp} (emborrachada={parsed.Emborrachada})");
         }
-
-
 
         private static async Task HandleToolingFile(FileSystemEventArgs e, string queueName)
         {
@@ -300,7 +288,7 @@ namespace FileMonitor
             var fileInfo = new FileInfo(e.FullPath);
             var original = fileInfo.Name;
 
-            if (!await WaitFileReady(fileInfo.FullName, TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(200)))
+            if (!await WaitFileReady(fileInfo.FullName, TimeSpan.FromSeconds(8), TimeSpan.FromMilliseconds(200), 2))
             {
                 Console.WriteLine($"[TOOLING] Arquivo não ficou pronto a tempo: '{original}'");
                 return;
@@ -308,7 +296,7 @@ namespace FileMonitor
 
             var message = new
             {
-                file_name = fileInfo.Name,   // mantém o nome ORIGINAL
+                file_name = fileInfo.Name,
                 path = fileInfo.FullName,
                 timestamp = GetSaoPauloTimestamp()
             };
@@ -331,8 +319,6 @@ namespace FileMonitor
                 Console.WriteLine($"[TOOLING] Erro após {retryPolicy.MaxRetries} tentativas: {ex.Message}");
             }
         }
-
-
 
         private static async Task HandleNewFile(FileSystemEventArgs e, string queueName)
         {
@@ -379,7 +365,6 @@ namespace FileMonitor
             var fileInfo = new FileInfo(e.FullPath);
             var originalUpper = fileInfo.Name.Trim().ToUpperInvariant();
 
-            // Ignora palavras reservadas, se aparecerem por algum motivo
             foreach (var rw in ReservedWords)
             {
                 if (originalUpper.Contains(rw.ToUpperInvariant()))
@@ -389,25 +374,21 @@ namespace FileMonitor
                 }
             }
 
-            // Aceita apenas os padrões finais das máquinas de dobra
             var m = DobrasRegex.Match(originalUpper);
             if (!m.Success)
             {
-                // Ignora DXF "simples" e CF2 (não são fim de dobra)
                 Console.WriteLine($"[DOBRAS] Ignorado por padrão não correspondente: '{fileInfo.Name}'");
                 return;
             }
 
-            var nr = m.Groups[1].Value; // número do pedido
+            var nr = m.Groups[1].Value;
 
-            // Espera curta para garantir que o arquivo terminou de ser gravado
-            if (!await WaitFileReady(fileInfo.FullName, TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(200)))
+            if (!await WaitFileReady(fileInfo.FullName, TimeSpan.FromSeconds(8), TimeSpan.FromMilliseconds(200), 2))
             {
                 Console.WriteLine($"[DOBRAS] Arquivo não ficou pronto a tempo: '{fileInfo.Name}'");
                 return;
             }
 
-            // De-duplicação por janela (se vier .m.DXF e depois .DXF.FCD do mesmo NR)
             var now = DateTime.UtcNow;
             PruneDobrasSeen(now);
             if (DobrasSeen.TryGetValue(nr, out var last) && now - last < DobrasDedupWindow)
@@ -424,9 +405,6 @@ namespace FileMonitor
                 await retryPolicy.ExecuteAsync(async () =>
                 {
                     await Task.Delay(50);
-
-                    // Envia no MESMO formato de mensagem (mesmas chaves),
-                    // usando o nome real do arquivo salvo pela máquina de dobra.
                     var message = new
                     {
                         file_name = fileInfo.Name,
@@ -444,24 +422,60 @@ namespace FileMonitor
             }
         }
 
-        private static async Task<bool> WaitFileReady(string fullPath, TimeSpan timeout, TimeSpan pollInterval)
+        /// <summary>
+        /// Aguarda o arquivo "assentar" usando dois critérios:
+        ///  1) tamanho estável por N leituras consecutivas (usando FileShare.Read para conseguir inspecionar);
+        ///  2) ao final, tenta abrir com FileShare.None (sem lock) para garantir que ninguém mais está escrevendo.
+        /// </summary>
+        private static async Task<bool> WaitFileReady(
+            string fullPath,
+            TimeSpan timeout,
+            TimeSpan pollInterval,
+            int stableReads = 3)
         {
-            var start = DateTime.UtcNow;
-            while (DateTime.UtcNow - start < timeout)
+            var sw = Stopwatch.StartNew();
+            long? lastLen = null;
+            int stable = 0;
+
+            while (sw.Elapsed < timeout)
             {
+                long len = -1;
                 try
                 {
-                    using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.None))
+                    // Usa Read/Write share apenas para olhar o tamanho enquanto o arquivo pode estar em escrita
+                    using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                     {
-                        if (stream.Length >= 0) return true;
+                        len = stream.Length;
                     }
                 }
                 catch
                 {
-                    // ainda bloqueado
+                    // arquivo ainda não disponível para leitura básica
                 }
+
+                if (len >= 0)
+                {
+                    if (lastLen.HasValue && len == lastLen.Value) stable++;
+                    else { stable = 1; lastLen = len; }
+
+                    if (stable >= stableReads)
+                    {
+                        // teste final: abrir sem compartilhamento (garante que não está em uso)
+                        try
+                        {
+                            using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.None);
+                            if (stream.Length >= 0) return true;
+                        }
+                        catch
+                        {
+                            // ainda travado por outra app — continua aguardando
+                        }
+                    }
+                }
+
                 await Task.Delay(pollInterval);
             }
+
             return false;
         }
 
@@ -476,7 +490,6 @@ namespace FileMonitor
                 }
             }
         }
-
 
         private static string CleanFileName(string name)
         {
@@ -555,10 +568,9 @@ namespace FileMonitor
                         await action();
                         return;
                     }
-                    catch (BrokerUnreachableException ex)
+                    catch (BrokerUnreachableException)
                     {
-                        if (retryCount >= _maxRetries)
-                            throw;
+                        if (retryCount >= _maxRetries) throw;
 
                         var delay = TimeSpan.FromTicks((long)(_initialDelay.Ticks * Math.Pow(2, retryCount)));
                         Console.WriteLine($"Tentativa {retryCount + 1} falhou. Nova tentativa em {delay.TotalSeconds} segundos.");
@@ -580,3 +592,4 @@ namespace FileMonitor
         }
     }
 }
+
