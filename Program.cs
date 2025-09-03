@@ -5,14 +5,22 @@ using RabbitMQ.Client.Exceptions;
 using System.Text.RegularExpressions;
 using TimeZoneInfo = System.TimeZoneInfo;
 using System.Collections.Concurrent;
-using System.Runtime.InteropServices;
 using System.Diagnostics;
-using System.Linq;
+using RabbitMQ.Client.Events;
+using System.Runtime.InteropServices;
+
 
 namespace FileMonitor
 {
     class Program
     {
+        // RPC isolado
+        private static IConnection rpcConnection;
+        private static IModel rpcChannel;
+        private const string RpcQueueName = "filewatcher.rpc.ping";
+        private static string rpcConsumerTag;
+        private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
         private static readonly ConcurrentDictionary<string, System.Timers.Timer> OpDebouncers = new();
 
         private static FileSystemWatcher laserWatcher;
@@ -23,19 +31,19 @@ namespace FileMonitor
         private static IConnection persistentConnection;
         private static IModel persistentChannel;
 
-        private static readonly string LaserDir = @"D:\Laser";
-        private static readonly string FacasDir = @"D:\Laser\FACAS OK";
-        private static readonly string DobrasDir = @"D:\Dobradeira\Facas para Dobrar";
-        private static readonly string OpsDir = @"D:\Laser\NR";
+        // private static readonly string LaserDir = @"D:\Laser";
+        // private static readonly string FacasDir = @"D:\Laser\FACAS OK";
+        // private static readonly string DobrasDir = @"D:\Dobradeira\Facas para Dobrar";
+        // private static readonly string OpsDir = @"D:\Laser\NR";
 
-        //     private static readonly string LaserDir =
-        // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/tmp/laser";
-        //     private static readonly string FacasDir =
-        //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/tmp/laser/FACASOK";
-        //     private static readonly string DobrasDir =
-        //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/tmp/dobras";
-        //     private static readonly string OpsDir =
-        // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\NR" : "/tmp/nr";
+        private static readonly string LaserDir =
+    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/tmp/laser";
+        private static readonly string FacasDir =
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/tmp/laser/FACASOK";
+        private static readonly string DobrasDir =
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/tmp/dobras";
+        private static readonly string OpsDir =
+    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\NR" : "/tmp/nr";
 
         private static readonly RabbitMQConfig MqConfig = new RabbitMQConfig
         {
@@ -53,13 +61,13 @@ namespace FileMonitor
             }
         };
 
-        private static readonly TimeZoneInfo SaoPauloTimeZone =
-            TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
+        // private static readonly TimeZoneInfo SaoPauloTimeZone =
+        //     TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
 
-        //     private static readonly TimeZoneInfo SaoPauloTimeZone =
-        // RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-        // ? TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time")
-        // : TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+        private static readonly TimeZoneInfo SaoPauloTimeZone =
+    RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+    ? TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time")
+    : TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
 
         private static readonly ConnectionFactory RabbitMqFactory = new ConnectionFactory
         {
@@ -100,12 +108,18 @@ namespace FileMonitor
 
         static void Main(string[] args)
         {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                ConsoleHelper.DisableQuickEdit();
+            }
             SetupRabbitMQ();
 
-            laserWatcher  = CreateFileWatcher(LaserDir,  MqConfig.QueueNames["Laser"]);
-            facasWatcher  = CreateFileWatcher(FacasDir,  MqConfig.QueueNames["Facas"]);
+            laserWatcher = CreateFileWatcher(LaserDir, MqConfig.QueueNames["Laser"]);
+            facasWatcher = CreateFileWatcher(FacasDir, MqConfig.QueueNames["Facas"]);
             dobrarWatcher = CreateDobrasWatcher(DobrasDir, MqConfig.QueueNames["Dobra"]);
-            opWatcher     = CreateOpWatcher(OpsDir,     MqConfig.QueueNames["Ops"]);
+            opWatcher = CreateOpWatcher(OpsDir, MqConfig.QueueNames["Ops"]);
+            StartRpcResponder();
+
 
             Console.WriteLine("Monitoramento iniciado. Pressione CTRL+C para sair.");
             using (var resetEvent = new ManualResetEvent(false))
@@ -133,6 +147,9 @@ namespace FileMonitor
             {
                 persistentConnection = RabbitMqFactory.CreateConnection();
                 persistentChannel = persistentConnection.CreateModel();
+                rpcConnection = RabbitMqFactory.CreateConnection();
+                rpcChannel = rpcConnection.CreateModel();
+
 
                 foreach (var queue in MqConfig.QueueNames.Values)
                 {
@@ -142,6 +159,17 @@ namespace FileMonitor
                         exclusive: false,
                         autoDelete: false,
                         arguments: null);
+
+                    // fila de RPC (request)
+                    rpcChannel.QueueDeclare(
+                        queue: RpcQueueName,
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false,
+                        arguments: null);
+
+                    rpcChannel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
+
                 }
             }
             catch (Exception ex)
@@ -589,6 +617,53 @@ namespace FileMonitor
             public string UserName { get; set; }
             public string Password { get; set; }
             public Dictionary<string, string> QueueNames { get; set; }
+        }
+
+        private static void StartRpcResponder()
+        {
+            var consumer = new AsyncEventingBasicConsumer(rpcChannel);
+
+            consumer.Received += async (sender, ea) =>
+            {
+                try
+                {
+                    var replyTo = ea.BasicProperties?.ReplyTo;
+                    var corrId = ea.BasicProperties?.CorrelationId;
+
+                    if (string.IsNullOrWhiteSpace(replyTo))
+                    {
+                        rpcChannel.BasicAck(ea.DeliveryTag, false);
+                        return;
+                    }
+
+                    var payload = new
+                    {
+                        ok = true,
+                        instanceId = Environment.MachineName,
+                        ts = DateTimeOffset.UtcNow.ToString("O"),
+                        version = "1.0.0"
+                    };
+                    var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload, JsonOpts));
+
+                    var replyProps = rpcChannel.CreateBasicProperties();
+                    replyProps.ContentType = "application/json";
+                    replyProps.CorrelationId = corrId;
+
+                    // publica a resposta NO CANAL RPC
+                    rpcChannel.BasicPublish(exchange: "", routingKey: replyTo, basicProperties: replyProps, body: body);
+
+                    // ack do request após publicar
+                    rpcChannel.BasicAck(ea.DeliveryTag, false);
+                }
+                catch (Exception)
+                {
+                    try { rpcChannel.BasicNack(ea.DeliveryTag, false, requeue: true); } catch { }
+                }
+                await Task.Yield();
+            };
+
+            rpcConsumerTag = rpcChannel.BasicConsume(queue: RpcQueueName, autoAck: false, consumer: consumer);
+            Console.WriteLine($"[RPC] responder ligado em '{RpcQueueName}'");
         }
     }
 }

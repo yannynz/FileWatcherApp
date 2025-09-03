@@ -44,6 +44,26 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
+            "Microsoft.Extensions.Configuration": {
+              "target": "Package",
+              "version": "[9.0.8, )"
+            },
+            "Microsoft.Extensions.Configuration.Json": {
+              "target": "Package",
+              "version": "[9.0.8, )"
+            },
+            "Microsoft.Extensions.Hosting": {
+              "target": "Package",
+              "version": "[9.0.8, )"
+            },
+            "Microsoft.Extensions.Logging": {
+              "target": "Package",
+              "version": "[10.0.0-preview.7.25380.108, )"
+            },
+            "Microsoft.Extensions.Options": {
+              "target": "Package",
+              "version": "[10.0.0-preview.7.25380.108, )"
+            },
             "Microsoft.NET.ILLink.Tasks": {
               "suppressParent": "All",
               "target": "Package",
@@ -60,11 +80,11 @@
             },
             "RabbitMQ.Client": {
               "target": "Package",
-              "version": "[6.6.1, )"
+              "version": "[6.7.0, )"
             },
             "System.Text.Json": {
               "target": "Package",
-              "version": "[9.0.3, )"
+              "version": "[9.0.8, )"
             }
           },
           "imports": [

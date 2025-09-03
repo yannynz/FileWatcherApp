@@ -6,22 +6,18 @@ using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 public static class PdfParser
 {
-    // continua útil, mas reforçado com "só dígitos":
     private static readonly Regex NumeroOpFromNameRegex = new(
         @"(?i)\bOrdem\s*de\s*Produ[cç][aã]o\s*n[ºo\.]?\s*(\d{4,})\b",
         RegexOptions.Compiled
     );
 
-    // pega "a ÚLTIMA sequência de 4+ dígitos" (evita confundir com CEP, CNPJ etc.)
     private static readonly Regex LastDigitsRegex = new(@"\b(\d{4,})\b", RegexOptions.Compiled);
 
-    // bloco de matéria-prima com variações
     private static readonly Regex MateriaPrimaBlockRegex = new(
         @"Mat[ée]ria[\-\s]*prima(.*?)(?:\n\s*\n|Observa[cç][aã]o|$)",
         RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 
-    // regex “tolerante” para BORRACHA com hífens/quebras (usado como fallback)
     private static readonly Regex BorrachaLooseRegex = new(
         @"B\s*O\s*R\s*R\s*A\s*C\s*H\s*A",
         RegexOptions.IgnoreCase | RegexOptions.Compiled
@@ -67,7 +63,6 @@ public static class PdfParser
         static string CollapseSpacesAndHyphens(string s) =>
             Regex.Replace(s ?? string.Empty, @"[\s\-]+", string.Empty);
 
-        // versão "busca": sem acento, upper e com espaços colapsados
         static string PrepareSearchText(string s)
         {
             var ascii = ToAscii(s).ToUpperInvariant();
@@ -77,11 +72,9 @@ public static class PdfParser
         string fileBase = Path.GetFileNameWithoutExtension(pdfPath);
         string fileBaseAscii = ToAscii(fileBase).Replace("º", "o"); // casos típicos "nº"
 
-        // 1) tenta pelo nome (padrão textual)
         var mName = NumeroOpFromNameRegex.Match(fileBaseAscii);
         string numero = mName.Success ? mName.Groups[1].Value.Trim() : string.Empty;
 
-        // 2) fallback pelo CONTEÚDO (procura OP / NR / ORDEM DE PRODUCAO : ####)
         if (string.IsNullOrWhiteSpace(numero))
         {
             string Grab(string pattern) =>
@@ -91,14 +84,12 @@ public static class PdfParser
             numero = Grab(@"(?:OP|NR|ORDEM\s*DE\s*PRODUCAO)\s*[:\-]?\s*([0-9]{4,})");
         }
 
-        // 3) fallback final: extrair "a última sequência de dígitos" do NOME do arquivo
         if (string.IsNullOrWhiteSpace(numero))
         {
             var mm = LastDigitsRegex.Matches(fileBaseAscii);
             if (mm.Count > 0) numero = mm[^1].Groups[1].Value; // última ocorrência
         }
 
-        // 4) como ÚLTIMO reduto: extrair do TEXTO “a última sequência de dígitos”
         if (string.IsNullOrWhiteSpace(numero))
         {
             var mm = LastDigitsRegex.Matches(ToAscii(allText));
@@ -182,7 +173,6 @@ public static class PdfParser
             if (DateTime.TryParseExact(s.Trim(), formats, PtBr, DateTimeStyles.None, out var d))
                 return d.ToString("yyyy-MM-dd");
 
-            // fallback para TryParse com cultura pt-BR
             if (DateTime.TryParse(s, PtBr, DateTimeStyles.None, out d))
                 return d.ToString("yyyy-MM-dd");
 
