@@ -22,6 +22,7 @@ namespace FileMonitor
         private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
         private static readonly ConcurrentDictionary<string, System.Timers.Timer> OpDebouncers = new();
+        private static readonly ConcurrentDictionary<string, System.Timers.Timer> FileDebouncers = new();
 
         private static FileSystemWatcher laserWatcher;
         private static FileSystemWatcher facasWatcher;
@@ -37,13 +38,13 @@ namespace FileMonitor
         private static readonly string OpsDir = @"D:\Laser\NR";
 
     //     private static readonly string LaserDir =
-    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/tmp/laser";
+    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/home/laser";
     //     private static readonly string FacasDir =
-    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/tmp/laser/FACASOK";
+    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/home/laser/FACASOK";
     //     private static readonly string DobrasDir =
-    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/tmp/dobras";
+    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/home/dobras";
     //     private static readonly string OpsDir =
-    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\NR" : "/tmp/nr";
+    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\NR" : "/home/nr";
 
         private static readonly RabbitMQConfig MqConfig = new RabbitMQConfig
         {
@@ -100,7 +101,7 @@ namespace FileMonitor
             RegexOptions.IgnoreCase
         );
 
-        private static readonly string[] ReservedWords = { "modelo", "borracha", "regua" };
+        private static readonly string[] ReservedWords = { "modelo", "borracha", "regua", "macho", "femea", "bloco", "relevo"};
         private static readonly string DestacadorDir = Path.Combine(LaserDir, "DESTACADOR");
 
         private static readonly ConcurrentDictionary<string, DateTime> DobrasSeen = new();
@@ -113,6 +114,17 @@ namespace FileMonitor
                 ConsoleHelper.DisableQuickEdit();
             }
             SetupRabbitMQ();
+
+            // Verificação rápida dos diretórios monitorados
+            try
+            {
+                Console.WriteLine($"[CFG] OS='{RuntimeInformation.OSDescription}'");
+                Console.WriteLine($"[CFG] LaserDir='{LaserDir}' exists={Directory.Exists(LaserDir)}");
+                Console.WriteLine($"[CFG] FacasDir='{FacasDir}' exists={Directory.Exists(FacasDir)}");
+                Console.WriteLine($"[CFG] DobrasDir='{DobrasDir}' exists={Directory.Exists(DobrasDir)}");
+                Console.WriteLine($"[CFG] OpsDir='{OpsDir}' exists={Directory.Exists(OpsDir)}");
+            }
+            catch { /* ignore logging issues */ }
 
             laserWatcher = CreateFileWatcher(LaserDir, MqConfig.QueueNames["Laser"]);
             facasWatcher = CreateFileWatcher(FacasDir, MqConfig.QueueNames["Facas"]);
@@ -184,27 +196,73 @@ namespace FileMonitor
             var watcher = new FileSystemWatcher
             {
                 Path = path,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime,
-                Filter = "*.*",
-                InternalBufferSize = 64 * 1024,
-                EnableRaisingEvents = true
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime | NotifyFilters.LastWrite | NotifyFilters.Size,
+                Filter = "*",
+                IncludeSubdirectories = true,
+                InternalBufferSize = 64 * 1024
             };
 
-            watcher.Created += async (sender, e) =>
+            FileSystemEventHandler handler = (sender, e) =>
             {
-                var nameUpper = (e.Name ?? string.Empty).Trim().ToUpperInvariant();
-                if (ToolingRegex.IsMatch(nameUpper))
-                    await HandleToolingFile(e, queueName);
-                else
-                    await HandleNewFile(e, queueName);
+                var key = e.FullPath;
+                var timer = FileDebouncers.AddOrUpdate(key,
+                    _ => NewTimer(key, queueName),
+                    (_, t) => { t.Stop(); t.Start(); return t; });
             };
+
+            watcher.Created += handler;
+            watcher.Changed += handler;
+            watcher.Renamed += (s, e) => handler(s, new FileSystemEventArgs(
+                WatcherChangeTypes.Changed, Path.GetDirectoryName(e.FullPath)!, Path.GetFileName(e.FullPath)!));
 
             watcher.Error += (s, e) =>
             {
                 Console.WriteLine($"Erro no FileSystemWatcher em '{path}': {e.GetException().Message}");
             };
 
+            watcher.EnableRaisingEvents = true;
             return watcher;
+
+            System.Timers.Timer NewTimer(string fullPath, string q)
+            {
+                var t = new System.Timers.Timer(1200) { AutoReset = false };
+                t.Elapsed += async (_, __) =>
+                {
+                    try
+                    {
+                        // Evita duplicidade: se o watcher é o de Laser, ignore arquivos que estejam sob a pasta FACAS
+                        if (string.Equals(q, MqConfig.QueueNames["Laser"], StringComparison.OrdinalIgnoreCase)
+                            && IsUnder(fullPath, FacasDir))
+                        {
+                            return;
+                        }
+                        // Se o watcher é o de Facas, ignore qualquer coisa fora da pasta de Facas
+                        if (string.Equals(q, MqConfig.QueueNames["Facas"], StringComparison.OrdinalIgnoreCase)
+                            && !IsUnder(fullPath, FacasDir))
+                        {
+                            return;
+                        }
+
+                        var nameUpper = Path.GetFileName(fullPath).Trim().ToUpperInvariant();
+                        var args = new FileSystemEventArgs(WatcherChangeTypes.Changed, Path.GetDirectoryName(fullPath)!, Path.GetFileName(fullPath)!);
+                        if (ToolingRegex.IsMatch(nameUpper))
+                            await HandleToolingFile(args, q);
+                        else
+                            await HandleNewFile(args, q);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[LASER/FACAS] Erro ao processar '{fullPath}': {ex.Message}");
+                    }
+                    finally
+                    {
+                        FileDebouncers.TryRemove(fullPath, out System.Timers.Timer _removed);
+                        t.Dispose();
+                    }
+                };
+                t.Start();
+                return t;
+            }
         }
 
         private static FileSystemWatcher CreateDobrasWatcher(string path, string queueName)
@@ -212,19 +270,24 @@ namespace FileMonitor
             var watcher = new FileSystemWatcher
             {
                 Path = path,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime,
-                Filter = "*.*",
-                InternalBufferSize = 64 * 1024,
-                EnableRaisingEvents = true
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime | NotifyFilters.LastWrite | NotifyFilters.Size,
+                Filter = "*",
+                IncludeSubdirectories = true,
+                InternalBufferSize = 64 * 1024
             };
 
-            watcher.Created += async (sender, e) => await HandleDobrasFile(e, queueName);
+            FileSystemEventHandler handler = async (sender, e) => await HandleDobrasFile(e, queueName);
+            watcher.Created += handler;
+            watcher.Changed += handler;
+            watcher.Renamed += (s, e) => handler(s, new FileSystemEventArgs(
+                WatcherChangeTypes.Changed, Path.GetDirectoryName(e.FullPath)!, Path.GetFileName(e.FullPath)!));
 
             watcher.Error += (s, e) =>
             {
                 Console.WriteLine($"Erro no FileSystemWatcher em '{path}': {e.GetException().Message}");
             };
 
+            watcher.EnableRaisingEvents = true;
             return watcher;
         }
 
@@ -233,16 +296,17 @@ namespace FileMonitor
             var watcher = new FileSystemWatcher
             {
                 Path = path,
-                Filter = "*.pdf",
+                // Usa filtro amplo e filtra por extensão no timer (debounce)
+                Filter = "*",
                 IncludeSubdirectories = true,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
-                InternalBufferSize = 64 * 1024,
-                EnableRaisingEvents = true
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
+                InternalBufferSize = 64 * 1024
             };
 
             FileSystemEventHandler handler = (sender, e) =>
             {
                 var key = e.FullPath;
+                try { Console.WriteLine($"[OP] FS event: {e.ChangeType} -> {key}"); } catch { }
                 var timer = OpDebouncers.AddOrUpdate(key,
                     _ => NewTimer(key, queueName),
                     (_, t) => { t.Stop(); t.Start(); return t; });
@@ -256,6 +320,7 @@ namespace FileMonitor
             watcher.Error += (s, e) =>
                 Console.WriteLine($"Erro no FileSystemWatcher(OP) em '{path}': {e.GetException().Message}");
 
+            watcher.EnableRaisingEvents = true;
             return watcher;
 
             System.Timers.Timer NewTimer(string fullPath, string q)
@@ -263,7 +328,12 @@ namespace FileMonitor
                 var t = new System.Timers.Timer(1200) { AutoReset = false };
                 t.Elapsed += async (_, __) =>
                 {
-                    try { await HandleOpFile(fullPath, q); }
+                    try
+                    {
+                        var ext = Path.GetExtension(fullPath) ?? string.Empty;
+                        if (!ext.Equals(".pdf", StringComparison.OrdinalIgnoreCase)) return;
+                        await HandleOpFile(fullPath, q);
+                    }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"[OP] Erro ao processar '{fullPath}': {ex.Message}");
@@ -292,21 +362,87 @@ namespace FileMonitor
 
             var parsed = PdfParser.Parse(fullPath);
 
-            // monta JSON da OP importada
+            // Ajusta data da OP para ZonedDateTime ISO (inclui offset e região SP)
+            string? dataOpZoned = null;
+            if (!string.IsNullOrWhiteSpace(parsed.DataOpIso))
+            {
+                try
+                {
+                    var parts = parsed.DataOpIso!.Split('-');
+                    int y = int.Parse(parts[0]);
+                    int m = int.Parse(parts[1]);
+                    int d = int.Parse(parts[2]);
+                    var local = new DateTime(y, m, d, 0, 0, 0, DateTimeKind.Unspecified);
+                    var offset = SaoPauloTimeZone.GetUtcOffset(local);
+                    var dto = new DateTimeOffset(local, offset);
+                    dataOpZoned = dto.ToString("yyyy-MM-dd'T'HH:mm:sszzz") + "[America/Sao_Paulo]";
+                }
+                catch { /* deixa nulo se der erro */ }
+            }
+
+            // Heurística adicional de emborrachada (bor, shore)
+            bool emborrachada = parsed.Emborrachada;
+            if (!emborrachada)
+            {
+                var joined = string.Join(" ", parsed.Materiais).ToUpperInvariant();
+                if (joined.Contains("BOR ") || joined.Contains("SHORE") || joined.Contains("EMBORRACH"))
+                    emborrachada = true;
+            }
+
+            // Combina data/hora de entrega requerida (se houver) para ZonedDateTime SP
+            string? dataReqZoned = null;
+            if (!string.IsNullOrWhiteSpace(parsed.DataEntregaIso))
+            {
+                var hora = string.IsNullOrWhiteSpace(parsed.HoraEntrega) ? "18:00" : parsed.HoraEntrega;
+                try
+                {
+                    var parts = parsed.DataEntregaIso!.Split('-');
+                    int y = int.Parse(parts[0]);
+                    int m = int.Parse(parts[1]);
+                    int d = int.Parse(parts[2]);
+                    var hm = hora.Split(':');
+                    int hh = int.Parse(hm[0]);
+                    int mm = int.Parse(hm[1]);
+                    var local = new DateTime(y, m, d, hh, mm, 0, DateTimeKind.Unspecified);
+                    var offset = SaoPauloTimeZone.GetUtcOffset(local);
+                    var dto = new DateTimeOffset(local, offset);
+                    dataReqZoned = dto.ToString("yyyy-MM-dd'T'HH:mm:sszzz") + "[America/Sao_Paulo]";
+                }
+                catch { /* deixa nulo se der erro */ }
+            }
+
             var message = new
             {
                 numeroOp = parsed.NumeroOp,
                 codigoProduto = parsed.CodigoProduto,
                 descricaoProduto = parsed.DescricaoProduto,
                 cliente = parsed.Cliente,
-                dataOp = parsed.DataOpIso,
+                dataOp = dataOpZoned,
                 materiais = parsed.Materiais,
-                emborrachada = parsed.Emborrachada,
-                sharePath = fullPath
+                emborrachada = emborrachada,
+                sharePath = fullPath,
+                // Extras estruturados (não escrevemos em observação do pedido)
+                destacador = parsed.Destacador,
+                modalidadeEntrega = string.IsNullOrWhiteSpace(parsed.ModalidadeEntrega) ? null : parsed.ModalidadeEntrega,
+                dataRequeridaEntrega = dataReqZoned,
+                usuarioImportacao = parsed.Usuario,
+                pertinax = parsed.Pertinax,
+                poliester = parsed.Poliester,
+                papelCalibrado = parsed.PapelCalibrado
             };
 
             SendToRabbitMQ(queueName, message);
             Console.WriteLine($"[OP] Import publicada: {parsed.NumeroOp} (emborrachada={parsed.Emborrachada})");
+        }
+
+        private static bool IsUnder(string fullPath, string directory)
+        {
+            if (string.IsNullOrEmpty(fullPath) || string.IsNullOrEmpty(directory)) return false;
+            var dirWithSep = directory.EndsWith(Path.DirectorySeparatorChar) ? directory : directory + Path.DirectorySeparatorChar;
+            var comparison = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            return fullPath.StartsWith(dirWithSep, comparison) || string.Equals(fullPath, directory, comparison);
         }
 
         private static async Task HandleToolingFile(FileSystemEventArgs e, string queueName)
@@ -558,6 +694,11 @@ namespace FileMonitor
 
                 var properties = persistentChannel.CreateBasicProperties();
                 properties.Persistent = true;
+                properties.ContentType = "application/json";
+                properties.ContentEncoding = "utf-8";
+                properties.Headers ??= new Dictionary<string, object>();
+                // Ajuda o Spring a bindar diretamente no DTO quando aplicável
+                properties.Headers["__TypeId__"] = "git.yannynz.organizadorproducao.model.dto.OpImportRequestDTO";
 
                 persistentChannel.BasicPublish(
                     exchange: "",

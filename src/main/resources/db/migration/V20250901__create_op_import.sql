@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS op_import (
+  id                       BIGSERIAL PRIMARY KEY,
+  numero_op                VARCHAR(255) NOT NULL,
+  codigo_produto           VARCHAR(255),
+  descricao_produto        VARCHAR(255),
+  cliente                  VARCHAR(255),
+  data_op                  TIMESTAMPTZ,
+  emborrachada             BOOLEAN NOT NULL DEFAULT false,
+  share_path               VARCHAR(1024),
+  materiais                JSONB,
+  destacador               VARCHAR(10),
+  modalidade_entrega       VARCHAR(50),
+  faca_id                  BIGINT,
+  created_at               TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  data_requerida_entrega   TIMESTAMPTZ,
+  usuario_importacao       VARCHAR(255),
+  pertinax                 BOOLEAN,
+  poliester                BOOLEAN,
+  papel_calibrado          BOOLEAN,
+  CONSTRAINT uk_op_import_numero_op UNIQUE (numero_op)
+);
