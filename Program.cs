@@ -5,6 +5,7 @@ using RabbitMQ.Client.Exceptions;
 using System.Text.RegularExpressions;
 using TimeZoneInfo = System.TimeZoneInfo;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using RabbitMQ.Client.Events;
 using System.Runtime.InteropServices;
@@ -12,7 +13,7 @@ using System.Runtime.InteropServices;
 
 namespace FileMonitor
 {
-    class Program
+    public static class Program
     {
         // RPC isolado
         private static IConnection rpcConnection;
@@ -91,10 +92,16 @@ namespace FileMonitor
             RegexOptions.IgnoreCase
         );
 
-        private static readonly Regex DobrasRegex = new Regex(
-            @"^NR\s*(\d+)\.(M\.DXF|DXF\.FCD)$",
-            RegexOptions.IgnoreCase
+        private static readonly Regex DobrasNumberRegex = new Regex(
+            @"\bNR\s*(\d+)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled
         );
+
+        private static readonly Dictionary<string, string> DobrasSuffixNormalization = new(StringComparer.OrdinalIgnoreCase)
+        {
+            { ".M.DXF", ".m.DXF" },
+            { ".DXF.FCD", ".DXF.FCD" }
+        };
 
         private static readonly Regex ToolingRegex = new Regex(
             @"^NR(?<nr>\d+)(?<cliente>[A-Z0-9]+)_(?<sexo>MACHO|FEMEA)_(?<cor>[A-Z0-9]+)\.CNC$",
@@ -527,25 +534,23 @@ namespace FileMonitor
             if (Directory.Exists(e.FullPath)) return;
 
             var fileInfo = new FileInfo(e.FullPath);
-            var originalUpper = fileInfo.Name.Trim().ToUpperInvariant();
+            var originalName = fileInfo.Name;
+            var upperName = originalName.Trim().ToUpperInvariant();
 
             foreach (var rw in ReservedWords)
             {
-                if (originalUpper.Contains(rw.ToUpperInvariant()))
+                if (upperName.Contains(rw.ToUpperInvariant()))
                 {
-                    Console.WriteLine($"[DOBRAS] Ignorado por palavra reservada: '{fileInfo.Name}'");
+                    Console.WriteLine($"[DOBRAS] Ignorado por palavra reservada: '{originalName}'");
                     return;
                 }
             }
 
-            var m = DobrasRegex.Match(originalUpper);
-            if (!m.Success)
+            if (!TrySanitizeDobrasName(originalName, out var nr, out var sanitizedName))
             {
-                Console.WriteLine($"[DOBRAS] Ignorado por padrão não correspondente: '{fileInfo.Name}'");
+                Console.WriteLine($"[DOBRAS] Ignorado por padrão não correspondente: '{originalName}'");
                 return;
             }
-
-            var nr = m.Groups[1].Value;
 
             if (!await WaitFileReady(fileInfo.FullName, TimeSpan.FromSeconds(8), TimeSpan.FromMilliseconds(200), 2))
             {
@@ -571,13 +576,14 @@ namespace FileMonitor
                     await Task.Delay(50);
                     var message = new
                     {
-                        file_name = fileInfo.Name,
+                        file_name = sanitizedName,
+                        original_file_name = fileInfo.Name,
                         path = fileInfo.FullName,
                         timestamp = GetSaoPauloTimestamp()
                     };
 
                     SendToRabbitMQ(queueName, message);
-                    Console.WriteLine($"[DOBRAS] Mensagem publicada (NR={nr}) a partir de '{fileInfo.Name}'");
+                    Console.WriteLine($"[DOBRAS] Mensagem publicada (NR={nr}) a partir de '{fileInfo.Name}' como '{sanitizedName}'");
                 });
             }
             catch (Exception ex)
@@ -675,6 +681,39 @@ namespace FileMonitor
             var priority = m.Groups[4].Value.ToUpperInvariant();
 
             return $"{tipo}{numero}{client}_{priority}.CNC";
+        }
+
+        private static bool TrySanitizeDobrasName(string fileName, out string nr, out string sanitizedName)
+        {
+            nr = string.Empty;
+            sanitizedName = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(fileName))
+                return false;
+
+            var trimmed = fileName.Trim();
+            var upper = trimmed.ToUpperInvariant();
+
+            string? suffix = null;
+            foreach (var kvp in DobrasSuffixNormalization)
+            {
+                if (upper.EndsWith(kvp.Key, StringComparison.OrdinalIgnoreCase))
+                {
+                    suffix = kvp.Value;
+                    break;
+                }
+            }
+
+            if (suffix is null)
+                return false;
+
+            var match = DobrasNumberRegex.Match(upper);
+            if (!match.Success)
+                return false;
+
+            nr = match.Groups[1].Value;
+            sanitizedName = $"NR {nr}{suffix}";
+            return true;
         }
 
         private static double GetSaoPauloTimestamp()
