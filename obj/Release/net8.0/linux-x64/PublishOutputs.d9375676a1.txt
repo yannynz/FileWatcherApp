@@ -1,0 +1,2 @@
+/home/ynz/Documentos/FileWatcherApp/publish/FileWatcherApp.pdb
+/home/ynz/Documentos/FileWatcherApp/publish/FileWatcherApp

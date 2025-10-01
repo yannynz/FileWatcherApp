@@ -33,23 +33,23 @@ namespace FileMonitor
         private static IConnection persistentConnection;
         private static IModel persistentChannel;
 
-        private static readonly string LaserDir = @"D:\Laser";
-        private static readonly string FacasDir = @"D:\Laser\FACAS OK";
-        private static readonly string DobrasDir = @"D:\Dobradeira\Facas para Dobrar";
-        private static readonly string OpsDir = @"D:\Laser\NR";
+        // private static readonly string LaserDir = @"D:\Laser";
+        // private static readonly string FacasDir = @"D:\Laser\FACAS OK";
+        // private static readonly string DobrasDir = @"D:\Dobradeira\Facas para Dobrar";
+        // private static readonly string OpsDir = @"D:\Laser\NR";
 
-    //     private static readonly string LaserDir =
-    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/home/laser";
-    //     private static readonly string FacasDir =
-    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/home/laser/FACASOK";
-    //     private static readonly string DobrasDir =
-    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/home/dobras";
-    //     private static readonly string OpsDir =
-    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\NR" : "/home/nr";
+        private static readonly string LaserDir =
+    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/home/laser";
+        private static readonly string FacasDir =
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/home/laser/FACASOK";
+        private static readonly string DobrasDir =
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/home/dobras";
+        private static readonly string OpsDir =
+    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\NR" : "/home/nr";
 
         private static readonly RabbitMQConfig MqConfig = new RabbitMQConfig
         {
-            Host = "192.168.10.13",
+            Host = "192.168.10.36",
             Port = 5672,
             VirtualHost = "/",
             UserName = "guest",
@@ -63,13 +63,13 @@ namespace FileMonitor
             }
         };
 
-        private static readonly TimeZoneInfo SaoPauloTimeZone =
-            TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
+        // private static readonly TimeZoneInfo SaoPauloTimeZone =
+            // TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
 
-    //     private static readonly TimeZoneInfo SaoPauloTimeZone =
-    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-    // ? TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time")
-    // : TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+        private static readonly TimeZoneInfo SaoPauloTimeZone =
+    RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+    ? TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time")
+    : TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
 
         private static readonly ConnectionFactory RabbitMqFactory = new ConnectionFactory
         {

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -53,6 +54,21 @@ public static class PdfParser
     private static readonly Regex FallbackEntregaTimeWithLabelRegex = new Regex(
         @"\b(\d{1,2})\s*(?:HORAS?|HRS?|HS|H)\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase
+    );
+
+    private static readonly Regex ObservacaoBlockRegex = new Regex(
+        @"(?im)^\s*Observa[cç][aã]o(?:es)?\s*[:\-]?\s*(.+?)(?=^\s*[A-Z][^\r\n]*:|^\s*\w+:|$)",
+        RegexOptions.Compiled | RegexOptions.Singleline
+    );
+
+    private static readonly Regex ObservacaoStopRegex = new Regex(
+        @"(?im)^\s*(?:Mat[eé]ria[\s\-]*prima|Data\s+Emiss[aã]o|Data\s+Entrega|Etapa\s*/?\s*Eventos|Operador|Assinatura\s+Cliente)\b",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex ObservacaoBackwardStopRegex = new Regex(
+        @"(?i)^\s*(?:Email|E-?mail|CNPJ|Inscri[cç][aã]o|Endere[cç]o|Cidade/UF|Telefone|CEP|Código\s+Produto|Descri[cç][aã]o\s+do\s+Produto|Cliente|Usu[áa]rio|Data\s+[:\-]|Data\s+Emiss[aã]o|Mat[eé]ria\s+prima)\b",
+        RegexOptions.Compiled
     );
 
     private static readonly Regex UsuarioRegex = new Regex(
@@ -197,11 +213,14 @@ public static class PdfParser
         // Extrair observações ou bloco para atributos extras
         bool hasObservacoesBlock = false;
         string observacoesBlock = "";
-        var mObs = Regex.Match(allText, @"Observa[cç][aã]o[s]?\s*[:\-]?\s*(.+?)(?=\n[A-Z][a-z]+:|\n\w+:|$)", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        var mObs = ObservacaoBlockRegex.Match(allText);
         if (mObs.Success)
         {
             hasObservacoesBlock = true;
-            observacoesBlock = mObs.Groups[1].Value;
+            var rawObs = mObs.Groups[1].Value;
+            var trimmed = TrimObservacoesBlock(rawObs);
+            var pre = ExtractObservacoesPreBlock(allText, mObs.Index);
+            observacoesBlock = BuildObservacoesBlock(pre, trimmed, rawObs);
         }
         else
         {
@@ -436,6 +455,68 @@ public static class PdfParser
                 sb.Append(ch);
         }
         return sb.ToString().Normalize(NormalizationForm.FormC);
+    }
+
+    private static string TrimObservacoesBlock(string block)
+    {
+        if (string.IsNullOrWhiteSpace(block)) return block;
+
+        var match = ObservacaoStopRegex.Match(block);
+        if (match.Success && match.Index > 0)
+            return block[..match.Index].TrimEnd();
+
+        return block.TrimEnd();
+    }
+
+    private static string ExtractObservacoesPreBlock(string fullText, int observacaoIndex)
+    {
+        if (string.IsNullOrEmpty(fullText) || observacaoIndex <= 0)
+            return string.Empty;
+
+        int windowStart = Math.Max(0, observacaoIndex - 600);
+        int length = observacaoIndex - windowStart;
+        if (length <= 0)
+            return string.Empty;
+
+        var segment = fullText.Substring(windowStart, length);
+        var lines = segment
+            .Split('\n')
+            .Select(l => l.Trim())
+            .Where(l => l.Length > 0)
+            .ToList();
+
+        if (lines.Count == 0)
+            return string.Empty;
+
+        var collected = new List<string>();
+        for (int i = lines.Count - 1; i >= 0; i--)
+        {
+            var line = lines[i];
+            if (ObservacaoBackwardStopRegex.IsMatch(line))
+                break;
+
+            collected.Add(line);
+
+            if (collected.Count >= 8)
+                break;
+        }
+
+        collected.Reverse();
+        return string.Join("\n", collected);
+    }
+
+    private static string BuildObservacoesBlock(string preBlock, string trimmedBlock, string rawBlock)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(preBlock))
+            parts.Add(preBlock.Trim());
+        if (!string.IsNullOrWhiteSpace(trimmedBlock))
+            parts.Add(trimmedBlock.Trim());
+
+        if (parts.Count > 0)
+            return string.Join("\n", parts);
+
+        return rawBlock;
     }
 
     // classe auxiliar interna para extras

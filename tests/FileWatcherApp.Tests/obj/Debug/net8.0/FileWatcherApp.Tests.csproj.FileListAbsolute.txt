@@ -2,7 +2,6 @@
 /home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/bin/Debug/net8.0/CoverletSourceRootsMapping_FileWatcherApp.Tests
 /home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/bin/Debug/net8.0/FileWatcherApp.deps.json
 /home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/bin/Debug/net8.0/FileWatcherApp.runtimeconfig.json
-/home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/bin/Debug/net8.0/FileWatcherApp.exe
 /home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/bin/Debug/net8.0/xunit.runner.visualstudio.testadapter.dll
 /home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/bin/Debug/net8.0/xunit.runner.reporters.netcoreapp10.dll
 /home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/bin/Debug/net8.0/xunit.runner.utility.netcoreapp10.dll
@@ -146,3 +145,4 @@
 /home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/obj/Debug/net8.0/FileWatcherApp.Tests.pdb
 /home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/obj/Debug/net8.0/FileWatcherApp.Tests.genruntimeconfig.cache
 /home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/obj/Debug/net8.0/ref/FileWatcherApp.Tests.dll
+/home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/bin/Debug/net8.0/FileWatcherApp
