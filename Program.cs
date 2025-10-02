@@ -45,7 +45,7 @@ namespace FileMonitor
         private static readonly string DobrasDir =
             RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/home/dobras";
         private static readonly string OpsDir =
-    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\NR" : "/home/nr";
+    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\NR" : "/home/nr";
 
         private static readonly RabbitMQConfig MqConfig = new RabbitMQConfig
         {
@@ -63,14 +63,14 @@ namespace FileMonitor
             }
         };
 
-        // private static readonly TimeZoneInfo SaoPauloTimeZone =
-            // TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
-
         private static readonly TimeZoneInfo SaoPauloTimeZone =
-    RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-    ? TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time")
-    : TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+            TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time");
 
+    //     private static readonly TimeZoneInfo SaoPauloTimeZone =
+    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+    // ? TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time")
+    // : TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+    //
         private static readonly ConnectionFactory RabbitMqFactory = new ConnectionFactory
         {
             HostName = MqConfig.Host,
