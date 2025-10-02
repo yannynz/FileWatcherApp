@@ -33,19 +33,19 @@ namespace FileMonitor
         private static IConnection persistentConnection;
         private static IModel persistentChannel;
 
-        // private static readonly string LaserDir = @"D:\Laser";
-        // private static readonly string FacasDir = @"D:\Laser\FACAS OK";
-        // private static readonly string DobrasDir = @"D:\Dobradeira\Facas para Dobrar";
-        // private static readonly string OpsDir = @"D:\Laser\NR";
+        private static readonly string LaserDir = @"D:\Laser";
+        private static readonly string FacasDir = @"D:\Laser\FACAS OK";
+        private static readonly string DobrasDir = @"D:\Dobradeira\Facas para Dobrar";
+        private static readonly string OpsDir = @"D:\Laser\NR";
 
-        private static readonly string LaserDir =
-    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/home/laser";
-        private static readonly string FacasDir =
-            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/home/laser/FACASOK";
-        private static readonly string DobrasDir =
-            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/home/dobras";
-        private static readonly string OpsDir =
-    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\NR" : "/home/nr";
+    //     private static readonly string LaserDir =
+    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser" : "/home/laser";
+    //     private static readonly string FacasDir =
+    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\FACAS OK" : "/home/laser/FACASOK";
+    //     private static readonly string DobrasDir =
+    //         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Dobradeira\Facas para Dobrar" : "/home/dobras";
+    //     private static readonly string OpsDir =
+    // RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"D:\Laser\NR" : "/home/nr";
 
         private static readonly RabbitMQConfig MqConfig = new RabbitMQConfig
         {
