@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
@@ -396,6 +397,14 @@ namespace FileMonitor
                     emborrachada = true;
             }
 
+            bool vaiVinco = parsed.VaiVinco;
+            if (!vaiVinco && parsed.Materiais.Count > 0)
+            {
+                var vincoJoined = RemoveAccents(string.Join(" ", parsed.Materiais)).ToUpperInvariant();
+                if (vincoJoined.Contains("VINCO"))
+                    vaiVinco = true;
+            }
+
             // Combina data/hora de entrega requerida (se houver) para ZonedDateTime SP
             string? dataReqZoned = null;
             if (!string.IsNullOrWhiteSpace(parsed.DataEntregaIso))
@@ -427,6 +436,7 @@ namespace FileMonitor
                 dataOp = dataOpZoned,
                 materiais = parsed.Materiais,
                 emborrachada = emborrachada,
+                vaiVinco = vaiVinco,
                 sharePath = fullPath,
                 // Extras estruturados (não escrevemos em observação do pedido)
                 destacador = parsed.Destacador,
@@ -439,7 +449,7 @@ namespace FileMonitor
             };
 
             SendToRabbitMQ(queueName, message);
-            Console.WriteLine($"[OP] Import publicada: {parsed.NumeroOp} (emborrachada={parsed.Emborrachada})");
+            Console.WriteLine($"[OP] Import publicada: {parsed.NumeroOp} (emborrachada={emborrachada}, vaiVinco={vaiVinco})");
         }
 
         private static bool IsUnder(string fullPath, string directory)
@@ -681,6 +691,19 @@ namespace FileMonitor
             var priority = m.Groups[4].Value.ToUpperInvariant();
 
             return $"{tipo}{numero}{client}_{priority}.CNC";
+        }
+
+        private static string RemoveAccents(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return input;
+            var normalized = input.Normalize(NormalizationForm.FormD);
+            var sb = new StringBuilder(normalized.Length);
+            foreach (var ch in normalized)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
+                    sb.Append(ch);
+            }
+            return sb.ToString().Normalize(NormalizationForm.FormC);
         }
 
         private static bool TrySanitizeDobrasName(string fileName, out string nr, out string sanitizedName)

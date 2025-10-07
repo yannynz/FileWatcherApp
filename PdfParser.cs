@@ -21,6 +21,10 @@ public static class PdfParser
         @"B\s*O\s*R\s*R\s*A\s*C\s*H\s*A",
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
+    private static readonly Regex VincoTokenRegex = new(
+        @"\bVINC(?:A|O)[A-Z0-9]*\b",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant
+    );
 
     private static readonly Regex DestacadorRegex = new Regex(
         @"\bDESTACADOR\b\s*[:\-]?\s*([MFmf](?:\s*/\s*[MFmf])?)\b|\b([MFmf](?:\s*/\s*[MFmf]))\s*DESTACADOR\b",
@@ -86,6 +90,7 @@ public static class PdfParser
         string? DataOpIso,
         System.Collections.Generic.List<string> Materiais,
         bool Emborrachada,
+        bool VaiVinco,
         string? Destacador,
         string? ModalidadeEntrega,
         string? DataEntregaIso,
@@ -194,6 +199,9 @@ public static class PdfParser
             .Where(s => s.Length > 0)
             .ToList();
 
+        var matBlockNormalized = RemoveAcentos(matBlock).ToUpperInvariant();
+        bool vaiVinco = HasVinco(materiais, matBlockNormalized);
+
         // Emborrachada
         bool emborrachada = materiais.Any(m => m.Contains("BORRACHA", StringComparison.OrdinalIgnoreCase));
         if (!emborrachada)
@@ -250,6 +258,7 @@ public static class PdfParser
             DataOpIso: dataIso,
             Materiais: materiais,
             Emborrachada: emborrachada,
+            VaiVinco: vaiVinco,
             Destacador: attr.Destacador,
             ModalidadeEntrega: attr.ModalidadeEntrega,
             DataEntregaIso: attr.DataEntregaIso,
@@ -409,6 +418,25 @@ public static class PdfParser
         // Regras adicionais para emborrachamento (BOR / SHORE) são avaliadas no chamador via materiais/flags
 
         return result;
+    }
+
+    private static bool HasVinco(IReadOnlyCollection<string> materiais, string? normalizedMatBlock)
+    {
+        if (materiais is { Count: > 0 })
+        {
+            foreach (var material in materiais)
+            {
+                if (string.IsNullOrWhiteSpace(material)) continue;
+                var normalized = RemoveAcentos(material).ToUpperInvariant();
+                if (VincoTokenRegex.IsMatch(normalized))
+                    return true;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalizedMatBlock) && VincoTokenRegex.IsMatch(normalizedMatBlock))
+            return true;
+
+        return false;
     }
 
     private static bool TryBuildHour(string hourComponent, string minuteComponent, out string formatted)

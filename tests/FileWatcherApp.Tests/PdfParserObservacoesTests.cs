@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -61,6 +62,7 @@ public class PdfParserObservacoesTests
         Assert.Equal("2025-09-17", parsed.DataEntregaIso);
         Assert.Equal("16:00", parsed.HoraEntrega);
         Assert.Equal("RETIRADA", parsed.ModalidadeEntrega);
+        Assert.False(parsed.VaiVinco);
     }
 
     [Fact]
@@ -138,5 +140,60 @@ public class PdfParserObservacoesTests
         var trimmed = method!.Invoke(null, new object?[] { input }) as string;
 
         Assert.Equal("Linha 1\nLinha 2", trimmed);
+    }
+
+    [Fact]
+    public void HasVinco_IdentificaMaterialComVinco()
+    {
+        var method = typeof(PdfParser).GetMethod(
+            "HasVinco",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        var materiais = new List<string> { "VINCO 2PT 23,80" };
+        var result = (bool)method!.Invoke(null, new object?[]
+        {
+            materiais,
+            null
+        })!;
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void HasVinco_FallbackDetectaTextoNormalizado()
+    {
+        var method = typeof(PdfParser).GetMethod(
+            "HasVinco",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        var result = (bool)method!.Invoke(null, new object?[]
+        {
+            new List<string>(),
+            "VINCADOR 3PT"
+        })!;
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void HasVinco_RetornaFalseQuandoAusente()
+    {
+        var method = typeof(PdfParser).GetMethod(
+            "HasVinco",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        var result = (bool)method!.Invoke(null, new object?[]
+        {
+            new List<string> { "CORTE 2PT", "PICOTE" },
+            null
+        })!;
+
+        Assert.False(result);
     }
 }
