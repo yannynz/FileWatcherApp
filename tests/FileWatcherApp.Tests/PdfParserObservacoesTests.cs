@@ -143,6 +143,153 @@ public class PdfParserObservacoesTests
     }
 
     [Fact]
+    public void ParseExtrasFromText_ComCabecalhoNaoConfundeDataEntrega()
+    {
+        const string observacoes = """
+Nº O.P.
+119995
+Data
+15/09/2025
+Quantidade
+1
+Observação
+EMBORRACHAMENTO
+RETIRA
+18/09/2025
+16:00 HORAS
+""";
+
+        const string fullText = "Data: 15/09/2025 08:15\n" + observacoes;
+
+        var parseExtras = typeof(PdfParser).GetMethod(
+            "ParseExtrasFromText",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(parseExtras);
+
+        var extras = parseExtras!.Invoke(null, new object?[]
+        {
+            observacoes,
+            fullText,
+            "2025-09-15",
+            true
+        });
+
+        Assert.NotNull(extras);
+
+        var extrasType = extras!.GetType();
+        var dataEntrega = extrasType.GetProperty("DataEntregaIso")?.GetValue(extras) as string;
+        var horaEntrega = extrasType.GetProperty("HoraEntrega")?.GetValue(extras) as string;
+
+        Assert.Equal("2025-09-18", dataEntrega);
+        Assert.Equal("16:00", horaEntrega);
+    }
+
+    [Fact]
+    public void ExtractEntregaDateFromLines_IgnoraCabecalhoSemContexto()
+    {
+        var method = typeof(PdfParser).GetMethod(
+            "ExtractEntregaDateFromLines",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        var linhas = new List<string>
+        {
+            "Nº O.P.",
+            "119995",
+            "Data",
+            "15/09/2025",
+            "Quantidade",
+            "1"
+        };
+
+        var result = method!.Invoke(null, new object?[]
+        {
+            linhas,
+            "2025-09-15",
+            "Data: 15/09/2025 08:15"
+        }) as string;
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ExtractEntregaDateFromLines_PriorizaDataComPalavraEntrega()
+    {
+        var method = typeof(PdfParser).GetMethod(
+            "ExtractEntregaDateFromLines",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        var linhas = new List<string>
+        {
+            "Nº O.P.",
+            "119995",
+            "Data",
+            "15/09/2025",
+            "Observação",
+            "Entrega requerida 20/09/2025",
+            "RETIRA"
+        };
+
+        var result = method!.Invoke(null, new object?[]
+        {
+            linhas,
+            "2025-09-15",
+            "Data: 15/09/2025 08:15\n" + string.Join('\n', linhas)
+        }) as string;
+
+        Assert.Equal("2025-09-20", result);
+    }
+
+    [Fact]
+    public void ExtractEntregaTimeFromLines_IgnoraHorasSemIndicador()
+    {
+        var method = typeof(PdfParser).GetMethod(
+            "ExtractEntregaTimeFromLines",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        var linhas = new List<string>
+        {
+            "Data emissão: 09:30"
+        };
+
+        var result = method!.Invoke(null, new object?[]
+        {
+            linhas
+        }) as string;
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ExtractEntregaTimeFromLines_PreferenciaPorLinhaComRetira()
+    {
+        var method = typeof(PdfParser).GetMethod(
+            "ExtractEntregaTimeFromLines",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        var linhas = new List<string>
+        {
+            "Horário de criação 08:00",
+            "RETIRA 16:30 HORAS"
+        };
+
+        var result = method!.Invoke(null, new object?[]
+        {
+            linhas
+        }) as string;
+
+        Assert.Equal("16:30", result);
+    }
+
+    [Fact]
     public void HasVinco_IdentificaMaterialComVinco()
     {
         var method = typeof(PdfParser).GetMethod(

@@ -363,49 +363,16 @@ public static class PdfParser
         {
             if (result.DataEntregaIso == null)
             {
-                foreach (var line in rawLines)
-                {
-                    var cleaned = RemoveAcentos(line).ToUpperInvariant();
-                    if (string.IsNullOrWhiteSpace(cleaned))
-                        continue;
-                    if (cleaned.StartsWith("DATA") || cleaned.Contains("DATA "))
-                        continue;
-
-                    var match = FallbackEntregaDateRegex.Match(line);
-                    if (!match.Success)
-                        continue;
-
-                    var iso = ToIsoDate(AjustaAnoSeNecessario(match.Groups[1].Value, dataOpIso, fullText));
-                    if (iso != null)
-                    {
-                        result.DataEntregaIso = iso;
-                        break;
-                    }
-                }
+                var extractedDate = ExtractEntregaDateFromLines(rawLines, dataOpIso, fullText);
+                if (!string.IsNullOrEmpty(extractedDate))
+                    result.DataEntregaIso = extractedDate;
             }
 
             if (result.HoraEntrega == null)
             {
-                foreach (var line in rawLines)
-                {
-                    var cleaned = RemoveAcentos(line).ToUpperInvariant();
-                    if (string.IsNullOrWhiteSpace(cleaned))
-                        continue;
-
-                    var colon = FallbackEntregaTimeColonRegex.Match(cleaned);
-                    if (colon.Success && TryBuildHour(colon.Groups[1].Value, colon.Groups[2].Value, out var colonFormatted))
-                    {
-                        result.HoraEntrega = colonFormatted;
-                        break;
-                    }
-
-                    var withLabel = FallbackEntregaTimeWithLabelRegex.Match(cleaned);
-                    if (withLabel.Success && TryBuildHour(withLabel.Groups[1].Value, "00", out var labelFormatted))
-                    {
-                        result.HoraEntrega = labelFormatted;
-                        break;
-                    }
-                }
+                var extractedHora = ExtractEntregaTimeFromLines(rawLines);
+                if (!string.IsNullOrEmpty(extractedHora))
+                    result.HoraEntrega = extractedHora;
             }
         }
 
@@ -557,6 +524,202 @@ public static class PdfParser
         public bool? Pertinax { get; set; }
         public bool? Poliester { get; set; }
         public bool? PapelCalibrado { get; set; }
+    }
+
+    private static string? ExtractEntregaDateFromLines(IReadOnlyList<string> rawLines, string? dataOpIso, string fullText)
+    {
+        if (rawLines.Count == 0) return null;
+
+        var normalized = rawLines
+            .Select(l => RemoveAcentos(l).ToUpperInvariant())
+            .ToArray();
+
+        string? bestIso = null;
+        int bestScore = int.MinValue;
+        int bestIndex = -1;
+
+        for (int i = 0; i < rawLines.Count; i++)
+        {
+            string original = rawLines[i];
+            if (string.IsNullOrWhiteSpace(original))
+                continue;
+
+            var match = FallbackEntregaDateRegex.Match(original);
+            if (!match.Success)
+                continue;
+
+            var iso = ToIsoDate(AjustaAnoSeNecessario(match.Groups[1].Value, dataOpIso, fullText));
+            if (iso == null)
+                continue;
+
+            string currentNorm = normalized[i];
+            string prevNorm = i > 0 ? normalized[i - 1] : string.Empty;
+            string nextNorm = i + 1 < normalized.Length ? normalized[i + 1] : string.Empty;
+
+            int score = 10;
+            if (LooksLikeHeader(prevNorm) || LooksLikeHeader(currentNorm))
+                score -= 30;
+
+            if (HasLogisticsKeyword(currentNorm))
+                score += 30;
+            if (HasLogisticsKeyword(prevNorm) || HasLogisticsKeyword(nextNorm))
+                score += 20;
+
+            if (HasTimeKeyword(prevNorm) || HasTimeKeyword(nextNorm))
+                score += 5;
+
+            if (score > bestScore || (score == bestScore && i > bestIndex))
+            {
+                bestScore = score;
+                bestIndex = i;
+                bestIso = iso;
+            }
+        }
+
+        if (bestIso == null)
+            return null;
+
+        return bestScore >= 10 ? bestIso : null;
+    }
+
+    private static string? ExtractEntregaTimeFromLines(IReadOnlyList<string> rawLines)
+    {
+        if (rawLines.Count == 0) return null;
+
+        var normalized = rawLines
+            .Select(l => RemoveAcentos(l).ToUpperInvariant())
+            .ToArray();
+
+        string? bestHora = null;
+        int bestScore = int.MinValue;
+        int bestIndex = -1;
+
+        for (int i = 0; i < rawLines.Count; i++)
+        {
+            string original = rawLines[i];
+            if (string.IsNullOrWhiteSpace(original))
+                continue;
+
+            string currentNorm = normalized[i];
+            string prevNorm = i > 0 ? normalized[i - 1] : string.Empty;
+            string nextNorm = i + 1 < normalized.Length ? normalized[i + 1] : string.Empty;
+
+            void Consider(string candidate)
+            {
+                if (string.IsNullOrWhiteSpace(candidate))
+                    return;
+
+                int score = 10;
+
+                if (HasTimeKeyword(currentNorm))
+                    score += 25;
+                if (HasTimeKeyword(prevNorm) || HasTimeKeyword(nextNorm))
+                    score += 10;
+
+                if (HasLogisticsKeyword(currentNorm))
+                    score += 20;
+                if (HasLogisticsKeyword(prevNorm) || HasLogisticsKeyword(nextNorm))
+                    score += 15;
+
+                if (LooksLikeHeader(currentNorm) || LooksLikeHeader(prevNorm))
+                    score -= 30;
+
+                if (score > bestScore || (score == bestScore && i > bestIndex))
+                {
+                    bestScore = score;
+                    bestIndex = i;
+                    bestHora = candidate;
+                }
+            }
+
+            var colon = FallbackEntregaTimeColonRegex.Match(original);
+            if (colon.Success && TryBuildHour(colon.Groups[1].Value, colon.Groups[2].Value, out var colonFormatted))
+                Consider(colonFormatted);
+
+            var withLabel = FallbackEntregaTimeWithLabelRegex.Match(currentNorm);
+            if (withLabel.Success && TryBuildHour(withLabel.Groups[1].Value, "00", out var labelFormatted))
+                Consider(labelFormatted);
+        }
+
+        if (bestHora == null)
+            return null;
+
+        return bestScore >= 10 ? bestHora : null;
+    }
+
+    private static bool HasLogisticsKeyword(string? normalized)
+    {
+        if (string.IsNullOrEmpty(normalized))
+            return false;
+
+        return normalized.Contains("ENTREG", StringComparison.Ordinal)
+            || normalized.Contains("RETIRA", StringComparison.Ordinal)
+            || normalized.Contains("RETIRADA", StringComparison.Ordinal)
+            || normalized.Contains("RETIRAR", StringComparison.Ordinal)
+            || normalized.Contains("COLETA", StringComparison.Ordinal)
+            || normalized.Contains("COLET", StringComparison.Ordinal)
+            || normalized.Contains("EXPEDI", StringComparison.Ordinal)
+            || normalized.Contains("ENVIO", StringComparison.Ordinal)
+            || normalized.Contains("ENVIAR", StringComparison.Ordinal)
+            || normalized.Contains("PRAZO", StringComparison.Ordinal)
+            || normalized.Contains("REQUER", StringComparison.Ordinal)
+            || normalized.Contains("RECOLH", StringComparison.Ordinal)
+            || normalized.Contains("BUSCA", StringComparison.Ordinal)
+            || normalized.Contains("BUSCAR", StringComparison.Ordinal);
+    }
+
+    private static bool HasTimeKeyword(string? normalized)
+    {
+        if (string.IsNullOrEmpty(normalized))
+            return false;
+
+        return normalized.Contains("HORA", StringComparison.Ordinal)
+            || normalized.Contains("HORAS", StringComparison.Ordinal)
+            || normalized.Contains("HORARIO", StringComparison.Ordinal)
+            || normalized.Contains("HORARIOS", StringComparison.Ordinal)
+            || normalized.Contains("HRS", StringComparison.Ordinal)
+            || normalized.Contains("HS", StringComparison.Ordinal);
+    }
+
+    private static bool LooksLikeHeader(string? normalized)
+    {
+        if (string.IsNullOrEmpty(normalized))
+            return false;
+
+        var trimmed = normalized.Trim();
+        if (trimmed.Length == 0)
+            return false;
+
+        if (trimmed.StartsWith("DATA", StringComparison.Ordinal))
+            return true;
+        if (trimmed.Contains("DATA EMIS", StringComparison.Ordinal))
+            return true;
+        if (trimmed.Contains("DATA OP", StringComparison.Ordinal))
+            return true;
+        if (trimmed.Contains("EMISSA", StringComparison.Ordinal))
+            return true;
+        if (trimmed.Contains("CRIAC", StringComparison.Ordinal))
+            return true;
+        if (trimmed.Contains("GERAC", StringComparison.Ordinal))
+            return true;
+        if (trimmed.Contains("CADAST", StringComparison.Ordinal))
+            return true;
+        if (trimmed.Contains("ORDEM", StringComparison.Ordinal))
+            return true;
+        if (trimmed.Contains("Nº", StringComparison.Ordinal) || trimmed.Contains("N°", StringComparison.Ordinal))
+            return true;
+        if (trimmed.StartsWith("NR", StringComparison.Ordinal) && trimmed.Contains("OP", StringComparison.Ordinal))
+            return true;
+        if (trimmed.Contains("NUMERO", StringComparison.Ordinal))
+            return true;
+        if (trimmed.Contains("QTDE", StringComparison.Ordinal))
+            return true;
+        if (trimmed.Contains("QUANT", StringComparison.Ordinal))
+            return true;
+        if (trimmed.Contains("CODIGO", StringComparison.Ordinal))
+            return true;
+
+        return false;
     }
 
     private static string? ToIsoDate(string raw)
