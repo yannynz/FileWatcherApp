@@ -88,9 +88,38 @@ namespace FileMonitor
             RegexOptions.Compiled
         );
 
-        private static readonly Regex UnifiedRegex = new Regex(
-            @"^(NR|CL)(\d+)([A-ZÀ-Ú]+).*?(VERMELHO|LARANJA|AMARELO|AZUL|VERDE).*?(?:\.CNC)?$",
-            RegexOptions.IgnoreCase
+        private static readonly Regex OrderHeaderRegex = new Regex(
+            @"(?<![A-Z0-9])(NR|CL)\s*(\d{4,})",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase
+        );
+
+        private static readonly Regex TokenRegex = new Regex(
+            @"[A-Z0-9À-Ú]+",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant
+        );
+
+        private const int MaxColorTokenSpan = 3;
+
+        private static readonly Dictionary<string, string> ColorNormalization = BuildColorNormalization();
+
+        private static readonly HashSet<string> TailNoiseTokens = CreateNormalizedSet(
+            "OK",
+            "LASER",
+            "CORTE",
+            "FACA",
+            "FACAS",
+            "PEDIDO",
+            "PEDIDOS",
+            "FINAL",
+            "PROGRAMACAO",
+            "PRODUCAO",
+            "IDIOTA",
+            "IDIOTAS",
+            "CNC",
+            "DXF",
+            "PDF",
+            "DWG",
+            "SVG"
         );
 
         private static readonly Regex DobrasNumberRegex = new Regex(
@@ -673,24 +702,401 @@ namespace FileMonitor
 
         private static string CleanFileName(string name)
         {
-            var upper = name.Trim().ToUpperInvariant();
+            if (string.IsNullOrWhiteSpace(name))
+                return null;
+
+            var trimmed = name.Trim();
+            if (trimmed.Length == 0)
+                return null;
+
+            var upper = trimmed.ToUpperInvariant();
+            var upperNoAccents = RemoveAccents(upper);
 
             foreach (var rw in ReservedWords)
             {
-                if (upper.Contains(rw.ToUpperInvariant()))
+                var token = rw.ToUpperInvariant();
+                if (upper.Contains(token, StringComparison.Ordinal) ||
+                    upperNoAccents.Contains(token, StringComparison.Ordinal))
+                {
                     return null;
+                }
             }
 
-            var m = UnifiedRegex.Match(upper);
-            if (!m.Success)
-                return null;
+            return TryNormalizeOrderFileName(upper, out var normalized) ? normalized : null;
+        }
 
-            var tipo = m.Groups[1].Value.ToUpperInvariant();
-            var numero = m.Groups[2].Value;
-            var client = m.Groups[3].Value.Replace(".", string.Empty).Replace(",", string.Empty);
-            var priority = m.Groups[4].Value.ToUpperInvariant();
+        private static bool TryNormalizeOrderFileName(string upperName, out string normalized)
+        {
+            normalized = null;
+            if (string.IsNullOrEmpty(upperName))
+                return false;
 
-            return $"{tipo}{numero}{client}_{priority}.CNC";
+            var match = OrderHeaderRegex.Match(upperName);
+            if (!match.Success)
+                return false;
+
+            var prefix = match.Groups[1].Value.ToUpperInvariant();
+            var number = match.Groups[2].Value;
+
+            var tailIndex = match.Index + match.Length;
+            if (tailIndex >= upperName.Length)
+                return false;
+
+            var tail = upperName.Substring(tailIndex);
+            var matches = TokenRegex.Matches(tail);
+            if (matches.Count == 0)
+                return false;
+
+            var tokens = new List<TokenInfo>(matches.Count);
+            foreach (Match tokenMatch in matches)
+            {
+                if (tokenMatch.Success && tokenMatch.Length > 0)
+                {
+                    tokens.Add(new TokenInfo(tokenMatch.Value));
+                }
+            }
+
+            if (tokens.Count == 0)
+                return false;
+
+            if (!TryExtractColor(tokens, out var color, out var colorStartIndex))
+                return false;
+
+            if (colorStartIndex <= 0)
+                return false;
+
+            var clientBuilder = new StringBuilder();
+            for (int i = 0; i < colorStartIndex; i++)
+            {
+                var token = tokens[i];
+                if (IsClientNoise(token.Normalized))
+                    continue;
+                clientBuilder.Append(token.Raw);
+            }
+
+            if (clientBuilder.Length == 0)
+                return false;
+
+            normalized = $"{prefix}{number}{clientBuilder}_{color}.CNC";
+            return true;
+        }
+
+        private static bool TryExtractColor(List<TokenInfo> tokens, out string color, out int colorStartIndex)
+        {
+            color = null;
+            colorStartIndex = -1;
+
+            if (tokens is null || tokens.Count == 0)
+                return false;
+
+            var keyBuilder = new StringBuilder();
+
+            for (int i = tokens.Count - 1; i >= 0; i--)
+            {
+                var token = tokens[i];
+
+                if (IsTailNoise(token.Normalized))
+                    continue;
+
+                for (int len = Math.Min(MaxColorTokenSpan, i + 1); len >= 1; len--)
+                {
+                    int start = i - len + 1;
+                    if (start < 0) continue;
+
+                    keyBuilder.Clear();
+                    for (int j = start; j <= i; j++)
+                    {
+                        keyBuilder.Append(tokens[j].Normalized);
+                    }
+
+                    var key = keyBuilder.ToString();
+                    if (ColorNormalization.TryGetValue(key, out var canonicalColor))
+                    {
+                        color = canonicalColor;
+                        colorStartIndex = start;
+                        return true;
+                    }
+                }
+
+                if (IsRevisionLikeToken(token.Normalized) || IsNumericToken(token.Normalized))
+                    continue;
+
+                return false;
+            }
+
+            return false;
+        }
+
+        private static Dictionary<string, string> BuildColorNormalization()
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            void Add(string color, string? canonical = null)
+            {
+                var key = NormalizeColorKey(color);
+                if (string.IsNullOrEmpty(key))
+                    return;
+
+                map[key] = canonical ?? NormalizeColorValue(color);
+            }
+
+            Add("VERMELHO");
+            Add("VERMELHA", "VERMELHO");
+            Add("LARANJA");
+            Add("AMARELO");
+            Add("AMARELA", "AMARELO");
+            Add("AZUL");
+            Add("AZUL CLARO");
+            Add("AZUL ESCURO");
+            Add("AZUL ROYAL");
+            Add("AZUL MARINHO", "AZUL_MARINHO");
+            Add("VERDE");
+            Add("VERDE CLARO");
+            Add("VERDE ESCURO");
+            Add("VERDE BANDEIRA", "VERDE_BANDEIRA");
+            Add("VERDE LIMAO", "VERDE_LIMAO");
+            Add("VERDE LIMÃO", "VERDE_LIMAO");
+            Add("VERDE AGUA", "VERDE_AGUA");
+            Add("VERDE ÁGUA", "VERDE_AGUA");
+            Add("VERDE MUSGO", "VERDE_MUSGO");
+            Add("ROXO");
+            Add("ROXA", "ROXO");
+            Add("ROSA");
+            Add("ROSA BEBE", "ROSA_BEBE");
+            Add("ROSA BEBÊ", "ROSA_BEBE");
+            Add("ROSA CHOQUE", "ROSA_CHOQUE");
+            Add("MAGENTA");
+            Add("CIANO");
+            Add("PRETO");
+            Add("PRETA", "PRETO");
+            Add("BRANCO");
+            Add("BRANCA", "BRANCO");
+            Add("CINZA");
+            Add("CINZA CLARO");
+            Add("CINZA ESCURO");
+            Add("CINZA GRAFITTE", "CINZA_GRAFITE");
+            Add("MARROM");
+            Add("MARROM CLARO");
+            Add("MARROM ESCURO");
+            Add("MARROM CAFÉ", "MARROM_CAFE");
+            Add("BEGE");
+            Add("OURO");
+            Add("OURO VELHO", "OURO_VELHO");
+            Add("DOURADO", "DOURADO");
+            Add("DOURADA", "DOURADO");
+            Add("PRATA");
+            Add("PRATA FOSCA", "PRATA_FOSCA");
+            Add("PRATA FOSCO", "PRATA_FOSCA");
+            Add("PRATA ESCURA", "PRATA_ESCURA");
+            Add("PRATA ESCURO", "PRATA_ESCURA");
+            Add("PRATA BRILHANTE", "PRATA_BRILHANTE");
+            Add("NATURAL");
+            Add("LILAS", "LILAS");
+            Add("LILÁS", "LILAS");
+            Add("VIOLETA");
+            Add("VINHO");
+            Add("BORDO", "BORDO");
+            Add("BORDÔ", "BORDO");
+            Add("MARFIM");
+            Add("CHUMBO");
+            Add("GRAFITE");
+            Add("INCOLOR");
+            Add("TRANSPARENTE");
+            Add("COLORIDO");
+            Add("AMBAR", "AMBAR");
+            Add("ÂMBAR", "AMBAR");
+            Add("SALMAO", "SALMAO");
+            Add("SALMÃO", "SALMAO");
+            Add("PINK");
+            Add("FUME", "FUME");
+            Add("FUMÊ", "FUME");
+            Add("CARAMELO");
+            Add("TURQUESA");
+            Add("COBRE");
+            Add("BRONZE");
+            Add("OURO ROSE", "OURO_ROSE");
+            Add("OURO ROSÉ", "OURO_ROSE");
+
+            return map;
+        }
+
+        private static string NormalizeColorKey(string color)
+        {
+            if (string.IsNullOrWhiteSpace(color))
+                return string.Empty;
+
+            var normalized = NormalizeToken(color);
+            var sb = new StringBuilder(normalized.Length);
+            foreach (var ch in normalized)
+            {
+                if (char.IsLetterOrDigit(ch))
+                {
+                    sb.Append(ch);
+                }
+            }
+
+            return sb.ToString();
+        }
+
+        private static string NormalizeColorValue(string color)
+        {
+            if (string.IsNullOrWhiteSpace(color))
+                return string.Empty;
+
+            var normalized = NormalizeToken(color);
+            var sb = new StringBuilder(normalized.Length);
+            var lastWasSeparator = false;
+            foreach (var ch in normalized)
+            {
+                if (char.IsLetterOrDigit(ch))
+                {
+                    sb.Append(ch);
+                    lastWasSeparator = false;
+                }
+                else if (!lastWasSeparator)
+                {
+                    sb.Append('_');
+                    lastWasSeparator = true;
+                }
+            }
+
+            while (sb.Length > 0 && sb[^1] == '_')
+            {
+                sb.Length--;
+            }
+
+            return sb.ToString();
+        }
+
+        private static HashSet<string> CreateNormalizedSet(params string[] tokens)
+        {
+            var set = new HashSet<string>(StringComparer.Ordinal);
+            if (tokens is null)
+                return set;
+
+            foreach (var token in tokens)
+            {
+                var normalized = NormalizeToken(token);
+                if (!string.IsNullOrEmpty(normalized))
+                {
+                    set.Add(normalized);
+                }
+            }
+
+            return set;
+        }
+
+        private static string NormalizeToken(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            return RemoveAccents(value).ToUpperInvariant();
+        }
+
+        private readonly struct TokenInfo
+        {
+            public TokenInfo(string raw)
+            {
+                Raw = raw;
+                Normalized = NormalizeToken(raw);
+            }
+
+            public string Raw { get; }
+            public string Normalized { get; }
+        }
+
+        private static bool IsClientNoise(string normalizedToken)
+        {
+            if (string.IsNullOrEmpty(normalizedToken))
+                return true;
+
+            if (TailNoiseTokens.Contains(normalizedToken))
+                return true;
+
+            if (normalizedToken.StartsWith("APROV", StringComparison.Ordinal))
+                return true;
+
+            if (IsRevisionLikeToken(normalizedToken))
+                return true;
+
+            return false;
+        }
+
+        private static bool IsTailNoise(string normalizedToken)
+        {
+            if (string.IsNullOrEmpty(normalizedToken))
+                return true;
+
+            if (TailNoiseTokens.Contains(normalizedToken))
+                return true;
+
+            if (normalizedToken.StartsWith("APROV", StringComparison.Ordinal))
+                return true;
+
+            if (IsRevisionLikeToken(normalizedToken))
+                return true;
+
+            if (IsNumericToken(normalizedToken))
+                return true;
+
+            return false;
+        }
+
+        private static bool IsNumericToken(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return false;
+
+            for (int i = 0; i < value.Length; i++)
+            {
+                if (!char.IsDigit(value[i]))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static bool IsRevisionLikeToken(string token)
+        {
+            if (string.IsNullOrEmpty(token))
+                return false;
+
+            if (token == "REV" || token.StartsWith("REVISAO", StringComparison.Ordinal))
+                return true;
+
+            if (token.StartsWith("REV", StringComparison.Ordinal))
+            {
+                if (token.Length == 3)
+                    return true;
+
+                return HasOnlyDigits(token, 3);
+            }
+
+            if (token.StartsWith("VERSAO", StringComparison.Ordinal) ||
+                token.StartsWith("VERSION", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if ((token[0] == 'V' || token[0] == 'R') && token.Length > 1 && HasOnlyDigits(token, 1))
+                return true;
+
+            return false;
+        }
+
+        private static bool HasOnlyDigits(string value, int startIndex)
+        {
+            if (string.IsNullOrEmpty(value) || startIndex >= value.Length)
+                return false;
+
+            for (int i = startIndex; i < value.Length; i++)
+            {
+                if (!char.IsDigit(value[i]))
+                    return false;
+            }
+
+            return true;
         }
 
         private static string RemoveAccents(string input)

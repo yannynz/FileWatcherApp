@@ -58,6 +58,19 @@ public class ProgramDobrasTests
         Assert.Null(result);
     }
 
+    [Theory]
+    [InlineData("NR 123456 Cliente da Silva Vermelho.cNc", "NR123456CLIENTEDASILVA_VERMELHO.CNC")]
+    [InlineData("nr123456 Cliente - verde limao aprova.cnc", "NR123456CLIENTE_VERDE_LIMAO.CNC")]
+    [InlineData("CL000789 XY-123 Azul Escuro rev2.dxf", "CL000789XY123_AZUL_ESCURO.CNC")]
+    [InlineData("NR987654 3M Preto laser final.cnc", "NR9876543M_PRETO.CNC")]
+    [InlineData(" laser nr123456 cliente idiotas azul ", "NR123456CLIENTE_AZUL.CNC")]
+    public void CleanFileName_SuportaRuidoEVariedadesDeCor(string input, string expected)
+    {
+        var result = InvokeClean(input);
+
+        Assert.Equal(expected, result);
+    }
+
     private static (bool success, string nr, string sanitized) InvokeSanitize(string input)
     {
         var method = ProgramType.GetMethod(
@@ -83,4 +96,3 @@ public class ProgramDobrasTests
         return method!.Invoke(null, new object?[] { input }) as string;
     }
 }
-
