@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/FileWatcherApp.Tests.csproj": {}
+    "/home/ynz/Documents/FileWatcherApp/tests/FileWatcherApp.Tests/FileWatcherApp.Tests.csproj": {}
   },
   "projects": {
-    "/home/ynz/Documentos/FileWatcherApp/FileWatcherApp.csproj": {
+    "/home/ynz/Documents/FileWatcherApp/FileWatcherApp.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/ynz/Documentos/FileWatcherApp/FileWatcherApp.csproj",
+        "projectUniqueName": "/home/ynz/Documents/FileWatcherApp/FileWatcherApp.csproj",
         "projectName": "FileWatcherApp",
-        "projectPath": "/home/ynz/Documentos/FileWatcherApp/FileWatcherApp.csproj",
+        "projectPath": "/home/ynz/Documents/FileWatcherApp/FileWatcherApp.csproj",
         "packagesPath": "/home/ynz/.nuget/packages/",
-        "outputPath": "/home/ynz/Documentos/FileWatcherApp/obj/",
+        "outputPath": "/home/ynz/Documents/FileWatcherApp/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/home/ynz/.nuget/NuGet/NuGet.Config"
@@ -44,6 +44,10 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
+            "AWSSDK.S3": {
+              "target": "Package",
+              "version": "[3.7.408, )"
+            },
             "Microsoft.Extensions.Configuration": {
               "target": "Package",
               "version": "[9.0.8, )"
@@ -76,9 +80,25 @@
               "target": "Package",
               "version": "[6.7.0, )"
             },
+            "SkiaSharp": {
+              "target": "Package",
+              "version": "[2.88.6, )"
+            },
+            "SkiaSharp.NativeAssets.Linux": {
+              "target": "Package",
+              "version": "[2.88.6, )"
+            },
+            "SkiaSharp.NativeAssets.Win32": {
+              "target": "Package",
+              "version": "[2.88.6, )"
+            },
             "System.Text.Json": {
               "target": "Package",
               "version": "[9.0.8, )"
+            },
+            "netDxf": {
+              "target": "Package",
+              "version": "[3.0.1, )"
             }
           },
           "imports": [
@@ -92,23 +112,37 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[8.0.21, 8.0.21]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Host.linux-x64",
+              "version": "[8.0.21, 8.0.21]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[8.0.21, 8.0.21]"
+            }
+          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/9.0.305/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/9.0.306/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "/home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/FileWatcherApp.Tests.csproj": {
+    "/home/ynz/Documents/FileWatcherApp/tests/FileWatcherApp.Tests/FileWatcherApp.Tests.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/FileWatcherApp.Tests.csproj",
+        "projectUniqueName": "/home/ynz/Documents/FileWatcherApp/tests/FileWatcherApp.Tests/FileWatcherApp.Tests.csproj",
         "projectName": "FileWatcherApp.Tests",
-        "projectPath": "/home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/FileWatcherApp.Tests.csproj",
+        "projectPath": "/home/ynz/Documents/FileWatcherApp/tests/FileWatcherApp.Tests/FileWatcherApp.Tests.csproj",
         "packagesPath": "/home/ynz/.nuget/packages/",
-        "outputPath": "/home/ynz/Documentos/FileWatcherApp/tests/FileWatcherApp.Tests/obj/",
+        "outputPath": "/home/ynz/Documents/FileWatcherApp/tests/FileWatcherApp.Tests/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/home/ynz/.nuget/NuGet/NuGet.Config"
@@ -123,8 +157,8 @@
           "net8.0": {
             "targetAlias": "net8.0",
             "projectReferences": {
-              "/home/ynz/Documentos/FileWatcherApp/FileWatcherApp.csproj": {
-                "projectPath": "/home/ynz/Documentos/FileWatcherApp/FileWatcherApp.csproj"
+              "/home/ynz/Documents/FileWatcherApp/FileWatcherApp.csproj": {
+                "projectPath": "/home/ynz/Documents/FileWatcherApp/FileWatcherApp.csproj"
               }
             }
           }
@@ -145,6 +179,14 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
+            "Microsoft.Extensions.Logging.Abstractions": {
+              "target": "Package",
+              "version": "[10.0.0-preview.7.25380.108, )"
+            },
+            "Microsoft.Extensions.Options": {
+              "target": "Package",
+              "version": "[10.0.0-preview.7.25380.108, )"
+            },
             "Microsoft.NET.Test.Sdk": {
               "target": "Package",
               "version": "[17.11.1, )"
@@ -177,12 +219,22 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[8.0.21, 8.0.21]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[8.0.21, 8.0.21]"
+            }
+          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/9.0.305/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/9.0.306/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

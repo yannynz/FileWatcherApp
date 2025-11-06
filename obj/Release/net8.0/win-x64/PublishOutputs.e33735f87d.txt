@@ -1,0 +1,6 @@
+/home/ynz/Documents/FileWatcherApp/publish/win-x64/FileWatcherApp.pdb
+/home/ynz/Documents/FileWatcherApp/publish/win-x64/appsettings.Development.json
+/home/ynz/Documents/FileWatcherApp/publish/win-x64/appsettings.json
+/home/ynz/Documents/FileWatcherApp/publish/win-x64/appsettings.Production.json
+/home/ynz/Documents/FileWatcherApp/publish/win-x64/libSkiaSharp.dll
+/home/ynz/Documents/FileWatcherApp/publish/win-x64/FileWatcherApp.exe
