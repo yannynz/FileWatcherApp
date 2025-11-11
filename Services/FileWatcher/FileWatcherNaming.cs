@@ -38,25 +38,13 @@ public static class FileWatcherNaming
 
     private static readonly string[] ReservedWords =
     {
-        "modelo", "borracha", "regua", "macho", "femea", "bloco", "relevo"
+        "modelo", "borracha", "regua", "macho", "femea", "bloco" 
     };
 
     private static readonly HashSet<string> TailNoiseTokens = CreateNormalizedSet(
-        "OK",
-        "LASER",
-        "CORTE",
-        "FACA",
-        "FACAS",
-        "PEDIDO",
-        "PEDIDOS",
-        "FINAL",
-        "PROGRAMACAO",
-        "PRODUCAO",
-        "CNC",
-        "DXF",
-        "PDF",
-        "DWG",
-        "SVG");
+                "CNC",
+        "DXF"
+        );
 
     private static readonly Dictionary<string, string> ColorNormalization = BuildColorNormalization();
 

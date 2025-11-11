@@ -466,7 +466,6 @@
 /home/ynz/Documents/FileWatcherApp/bin/Release/net8.0/win-x64/hostfxr.dll
 /home/ynz/Documents/FileWatcherApp/bin/Release/net8.0/win-x64/hostpolicy.dll
 /home/ynz/Documents/FileWatcherApp/bin/Release/net8.0/win-x64/mscordaccore.dll
-/home/ynz/Documents/FileWatcherApp/bin/Release/net8.0/win-x64/mscordaccore_amd64_amd64_8.0.2125.47513.dll
 /home/ynz/Documents/FileWatcherApp/bin/Release/net8.0/win-x64/mscordbi.dll
 /home/ynz/Documents/FileWatcherApp/bin/Release/net8.0/win-x64/mscorrc.dll
 /home/ynz/Documents/FileWatcherApp/bin/Release/net8.0/win-x64/msquic.dll
@@ -482,3 +481,4 @@
 /home/ynz/Documents/FileWatcherApp/obj/Release/net8.0/win-x64/FileWatcherApp.pdb
 /home/ynz/Documents/FileWatcherApp/obj/Release/net8.0/win-x64/FileWatcherApp.genruntimeconfig.cache
 /home/ynz/Documents/FileWatcherApp/obj/Release/net8.0/win-x64/ref/FileWatcherApp.dll
+/home/ynz/Documents/FileWatcherApp/bin/Release/net8.0/win-x64/mscordaccore_amd64_amd64_8.0.2225.52707.dll

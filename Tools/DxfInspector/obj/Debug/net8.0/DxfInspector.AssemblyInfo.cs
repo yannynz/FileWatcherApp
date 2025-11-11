@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DxfInspector")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8a893a2eb3dedafc4d08202f455a026f49d73529")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b2971d8216fa29af0290c31630c81e512bfd93d5")]
 [assembly: System.Reflection.AssemblyProductAttribute("DxfInspector")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DxfInspector")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
