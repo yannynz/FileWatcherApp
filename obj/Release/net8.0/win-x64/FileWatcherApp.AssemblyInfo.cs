@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FileWatcherApp")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b2971d8216fa29af0290c31630c81e512bfd93d5")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+56088254dd22cec77c24e6258f59ede0b9f4216e")]
 [assembly: System.Reflection.AssemblyProductAttribute("FileWatcherApp")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FileWatcherApp")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
