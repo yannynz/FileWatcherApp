@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "0CbracbV7tc=",
+  "dgSpecHash": "7EB1HvgpSlw=",
   "success": true,
   "projectFilePath": "/home/ynz/Documents/FileWatcherApp/tests/FileWatcherApp.Tests/FileWatcherApp.Tests.csproj",
   "expectedPackageFiles": [
@@ -62,8 +62,8 @@
     "/home/ynz/.nuget/packages/xunit.extensibility.core/2.9.2/xunit.extensibility.core.2.9.2.nupkg.sha512",
     "/home/ynz/.nuget/packages/xunit.extensibility.execution/2.9.2/xunit.extensibility.execution.2.9.2.nupkg.sha512",
     "/home/ynz/.nuget/packages/xunit.runner.visualstudio/2.8.2/xunit.runner.visualstudio.2.8.2.nupkg.sha512",
-    "/home/ynz/.nuget/packages/microsoft.netcore.app.ref/8.0.21/microsoft.netcore.app.ref.8.0.21.nupkg.sha512",
-    "/home/ynz/.nuget/packages/microsoft.aspnetcore.app.ref/8.0.21/microsoft.aspnetcore.app.ref.8.0.21.nupkg.sha512"
+    "/home/ynz/.nuget/packages/microsoft.netcore.app.ref/8.0.22/microsoft.netcore.app.ref.8.0.22.nupkg.sha512",
+    "/home/ynz/.nuget/packages/microsoft.aspnetcore.app.ref/8.0.22/microsoft.aspnetcore.app.ref.8.0.22.nupkg.sha512"
   ],
   "logs": []
 }

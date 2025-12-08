@@ -722,7 +722,16 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
             usuarioImportacao = parsed.Usuario,
             pertinax = parsed.Pertinax,
             poliester = parsed.Poliester,
-            papelCalibrado = parsed.PapelCalibrado
+            papelCalibrado = parsed.PapelCalibrado,
+            clienteNomeOficial = parsed.ClienteNomeOficial,
+            apelidosSugeridos = parsed.ApelidosSugeridos,
+            enderecosSugeridos = parsed.EnderecosSugeridos,
+            padraoEntregaSugerido = parsed.PadraoEntregaSugerido,
+            dataUltimoServicoSugerida = parsed.DataUltimoServicoSugerida,
+            cnpjCpf = parsed.CnpjCpf,
+            inscricaoEstadual = parsed.InscricaoEstadual,
+            telefone = parsed.Telefone,
+            email = parsed.Email
         };
 
         PublishLegacyNotification(queueName, message);

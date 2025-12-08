@@ -23,18 +23,6 @@ production
 - Parser de OP passou a preservar o bloco de observações para extrair data, hora e modalidade de entrega com maior precisão.
 - Removido o `RuntimeIdentifier` fixo; informe o runtime desejado no `dotnet publish` ao gerar binário self-contained.
 
-voce tem se mostrado meio burro, me mostra como posso nao publicar todo .dxf na fila dobras, deixando passar para esta somente as salvas como .m.dxf .dxf.fcd,
-    assim como o antigo fluxo.  e preciso refinar estes scores> Resultado publicado analysisId=c2bc2f1d-40e7-4baf-9577-09fa991c7be7 file=NR 120253.dxf score=1
-  duration=4ms esta deveria ser 1.5 || 1.7 apesar de pequena vai serrilhas de ranhuras<estas podem ser chamadas de ser col, cola, travada> e consideravelmente
-  que as que o codigo classificou como 1 tbm, ele deve usar mais dos numero quebrados, afim de distinguir as maiores das menores.  Resultado publicado
-  analysisId=f8f1c891-bd4d-412d-a51b-618097cfe9dd file=NR 120184.dxf score=3 duration=2ms esta deve ser 5 pela quantidade e variedade de serrilhas mistas e
-  travadas que vao nelas, serrilhas no geral ja eh um red flag uma vez que sao cortadas todas nao mao ou seja mais trabalho, pela quantidade de cortes secos ou
-  seja muitos acos que depedendem de outros. Resultado publicado analysisId=f33db074-2d09-49eb-847f-cc2d00981ea3 file=NR119812.dxf score=3 duration=3ms correto
-  mas eh mais por conta de seu tamanho e quantidade de serrilhas travadas e mistas oque acaba atrasando na producao. Resultado publicado analysisId=4089b914-
-  cad4-4f80-884c-70a400ac546c file=NR 120247.dxf score=1 duration=1ms esta deve ser 3.7 || 4 pois cortara adesivo, plastico, vinil deve ser acresido o scores
-  por conta da responsabilidade e trabalho a+ que eh necessario. 
-
-
 • Dobras Queue
 
   - Abra Services/FileWatcher/FileWatcherService.cs:508 e identifique o método HandleDobrasFileAsync.

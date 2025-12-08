@@ -42,9 +42,14 @@ public static class FileWatcherNaming
     };
 
     private static readonly HashSet<string> TailNoiseTokens = CreateNormalizedSet(
-                "CNC",
+        "LASER",
+        "FINAL",
+        "OK",
+        "CORTE",
+        "TESTE",
+        "CNC",
         "DXF"
-        );
+    );
 
     private static readonly Dictionary<string, string> ColorNormalization = BuildColorNormalization();
 
@@ -313,7 +318,7 @@ public static class FileWatcherNaming
                 return;
             }
 
-            var normalized = NormalizeToken(color);
+            var normalized = NormalizeToken(color).Replace("_", "");
             if (string.IsNullOrEmpty(normalized))
             {
                 return;
