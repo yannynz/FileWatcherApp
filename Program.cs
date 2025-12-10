@@ -20,6 +20,11 @@ public static class Program
     public static async Task Main(string[] args)
     {
         var builder = Host.CreateApplicationBuilder(args);
+
+#if !DEBUG
+        builder.Environment.EnvironmentName = "Production";
+#endif
+
         var environment = builder.Environment;
         var configFiles = GatherConfigFiles(environment);
         Console.WriteLine($"[BOOT] Environment={environment.EnvironmentName} ConfigFiles={string.Join(", ", configFiles.Select(Path.GetFileName))}");
