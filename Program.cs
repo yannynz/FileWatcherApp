@@ -72,6 +72,7 @@ public static class Program
         builder.Services.AddHostedService<RpcPingResponderService>();
         builder.Services.AddHostedService<FileWatcherService>();
         builder.Services.AddHostedService<DXFAnalysisWorker>();
+        builder.Services.AddHostedService<FileCommandConsumer>();
 
         var host = builder.Build();
         await host.RunAsync();
