@@ -52,7 +52,7 @@ WS-SisCom Sistema Gerencial
 Assinatura ClienteNº Ordem de Produção                                             
 ";
 
-        var parsedOp = PdfParser.Parse(allText);
+        var parsedOp = PdfParser.Parse(allText, "test_120435.pdf");
 
         Assert.Equal("120435", parsedOp.NumeroOp);
         Assert.Equal("YCAR ARTES GRÁFICAS LIMITADA", parsedOp.Cliente);

@@ -1,0 +1,158 @@
+[BOOT] Environment=Development ConfigFiles=appsettings.json, appsettings.Development.json
+[BOOT] OS=Debian GNU/Linux 13 (trixie) Arch=X64 Machine=ynz
+[BOOT] Scoring=19 NumCurvesWeight=0.6 ExtraThresholds=4 FirstExtra=140/0.25 StepWeight=0.2
+info: FileWatcherApp.Messaging.RabbitMqConnection[0]
+      RabbitMQ conectado em 127.0.0.1:5672 vhost=/
+info: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      RPC responder ouvindo fila filewatcher.rpc.ping
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [BOOT] FileWatcherService em Debian GNU/Linux 13 (trixie) (X64) Machine='ynz'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [CFG] Pastas monitoradas: Laser='/home/ynz/Documents/FileWatcherApp/test_env/laser_output' Facas='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' Dobras='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output' Ops='/home/ynz/Documents/FileWatcherApp/test_env/ops_input' Destacador='/home/ynz/Documents/FileWatcherApp/test_env/laser_output/DESTACADOR'
+dbug: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      RabbitMQ conectado em 127.0.0.1:5672
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-LASER] Ativo em '/home/ynz/Documents/FileWatcherApp/test_env/laser_output' (Queue=laser_notifications)
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Ativo em '/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' (Queue=facas_notifications)
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-DOBRAS] Ativo em '/home/ynz/Documents/FileWatcherApp/test_env/dxf_output' (Queue=dobra_notifications)
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-OPS] Ativo em '/home/ynz/Documents/FileWatcherApp/test_env/ops_input' (Queue=op.imported)
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Iniciando DXFAnalysisWorker... fila=facas.analysis.request paralelismo=4
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Config imagem: persistLocal=False storageEnabled=True provider=s3 endpoint=http://127.0.0.1:9000 bucket=facas-renders keyPrefix=renders
+info: FileWatcherApp.Messaging.FileCommandConsumer[0]
+      FileCommandConsumer ouvindo fila file_commands
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: /home/ynz/Documents/FileWatcherApp
+dbug: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Pong enviado. corrId=(null) replyTo=amq.gen-2yXAUzTiOpDY9-hcuAY5ww
+dbug: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Pong enviado. corrId=(null) replyTo=amq.gen-kIeIB1XINX42lL2AU3r_fg
+dbug: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Pong enviado. corrId=(null) replyTo=amq.gen-tfDZwpxFo5zWfhzTeuyNWg
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Changed file='NR 120184.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 120184.dxf'
+dbug: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      Arquivo 'NR 120184.dxf' ignorado por formato inválido.
+dbug: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Pong enviado. corrId=(null) replyTo=amq.gen-4VAWUBWCy77yf0VE0eS__A
+dbug: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Pong enviado. corrId=(null) replyTo=amq.gen-Nf4wVRfEDPLE0V7bn0AD3A
+dbug: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Pong enviado. corrId=(null) replyTo=amq.gen--MjMfOB6eljyh4EIT0okjA
+dbug: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Pong enviado. corrId=(null) replyTo=amq.gen-T4k4sG3DYHP29M11msrlzg
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-DOBRAS] Created file='NR 120184.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 120184.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [PROCESS-DOBRAS] DOBRAS arquivo='NR 120184.DXF' (orig='NR 120184.dxf') path='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 120184.dxf' queue=dobra_notifications
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-DOBRAS] Changed file='NR 120184.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 120184.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [PROCESS-DOBRAS] DOBRAS arquivo='NR 120184.DXF' (orig='NR 120184.dxf') path='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 120184.dxf' queue=dobra_notifications
+dbug: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [DXF] Request publicado opId=NR120184 file='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 120184.dxf' resolved='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 120184.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [DOBRAS] Análise solicitada (NR=120184) a partir de 'NR 120184.dxf'
+dbug: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [DOBRAS] Publicação na fila 'dobra_notifications' suprimida para 'NR 120184.dxf' sem sufixo salvo
+dbug: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [DXF] Request publicado opId=NR120184 file='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 120184.dxf' resolved='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 120184.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [DOBRAS] Análise solicitada (NR=120184) a partir de 'NR 120184.dxf'
+dbug: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [DOBRAS] Publicação na fila 'dobra_notifications' suprimida para 'NR 120184.dxf' sem sufixo salvo
+dbug: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisCache[0]
+      Cache hit para hash sha256:e7773a2c833677ca7c7a63e4661045413b06cf301e1c1c637a1d5084ff1f56df
+dbug: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Pong enviado. corrId=(null) replyTo=amq.gen-c3DzGglig3ZRdKL_NSUKiw
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Cache hit com imagem remota (hash=sha256:e7773a2c833677ca7c7a63e4661045413b06cf301e1c1c637a1d5084ff1f56df)
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Resultado publicado analysisId=1db6df1c-fdbf-4ff2-938e-c29be645608f file=NR 120184.dxf score=5 duration=479ms
+dbug: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisCache[0]
+      Cache hit para hash sha256:e7773a2c833677ca7c7a63e4661045413b06cf301e1c1c637a1d5084ff1f56df
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Cache hit com imagem remota (hash=sha256:e7773a2c833677ca7c7a63e4661045413b06cf301e1c1c637a1d5084ff1f56df)
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Resultado publicado analysisId=ca2156bd-6ee0-415b-a0fb-acab291b94a7 file=NR 120184.dxf score=5 duration=12ms
+dbug: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Pong enviado. corrId=(null) replyTo=amq.gen-zt_er8EMLAgviKxuCSYtCQ
+dbug: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Pong enviado. corrId=(null) replyTo=amq.gen-RHV2ZHt0ngksft0ozitD5A
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-DOBRAS] Created file='NR 515196.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [PROCESS-DOBRAS] DOBRAS arquivo='NR 515196.DXF' (orig='NR 515196.dxf') path='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf' queue=dobra_notifications
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-DOBRAS] Changed file='NR 515196.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [PROCESS-DOBRAS] DOBRAS arquivo='NR 515196.DXF' (orig='NR 515196.dxf') path='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf' queue=dobra_notifications
+dbug: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [DXF] Request publicado opId=NR515196 file='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf' resolved='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [DOBRAS] Análise solicitada (NR=515196) a partir de 'NR 515196.dxf'
+dbug: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [DOBRAS] Publicação na fila 'dobra_notifications' suprimida para 'NR 515196.dxf' sem sufixo salvo
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      DXF /home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf reloaded with header upgrade (AutoCAD 2000 fallback)
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      DXF /home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf reloaded with header upgrade (AutoCAD 2000 fallback)
+[SCORER-CONFIG] NumCurvesWeight=0.6 ExtraThresholds=4 Step=(45,0.2,1.2) Dangling=4 MinRadiusDanger=0.35 SerrilhaPresence=0.65 ColaWeight=0.45
+info: FileWatcherApp.Services.DXFAnalysis.ComplexityScorer[0]
+      [SCORER] Pesos carregados | NumCurvesWeight=0.6 ExtraThresholds=4 Step=(45,0.2,1.2) DanglingThresholds=4 MinRadiusDanger=0.35 SerrilhaPresence=0.65 ColaWeight=0.45
+[CURVES] Extra threshold hit: curves=164 >= 140 weight=0.25
+[CURVES] Step contribution: curves=164 extra=104 steps=2.31 weight=0.46
+dbug: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [DXF] Request publicado opId=NR515196 file='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf' resolved='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [DOBRAS] Análise solicitada (NR=515196) a partir de 'NR 515196.dxf'
+dbug: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [DOBRAS] Publicação na fila 'dobra_notifications' suprimida para 'NR 515196.dxf' sem sufixo salvo
+info: FileWatcherApp.Services.DXFAnalysis.Rendering.CalibratedDxfRenderer[0]
+      Render DXF /home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf: Bounding box global utilizado (faca não encontrada): xMin=-15.236, xMax=2354.710, yMin=-37.000, yMax=2139.668, largura=2369.946, altura=2176.668
+info: FileWatcherApp.Services.DXFAnalysis.Rendering.CalibratedDxfRenderer[0]
+      Render DXF /home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf: escala=0.843901 px/unid | offset=(15.236, 37.000) | padding≈(0.0%, 0.0%) | área renderizada=(2369.946 x 2176.668)
+info: FileWatcherApp.Services.DXFAnalysis.Rendering.CalibratedDxfRenderer[0]
+      Render DXF /home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf: 1123 primitivas renderizadas (sem filtro).
+info: FileWatcherApp.Services.DXFAnalysis.Rendering.CalibratedDxfRenderer[0]
+      Renderização concluída para /home/ynz/Documents/FileWatcherApp/test_env/dxf_output/NR 515196.dxf. Dimensões=2000x1837 px | DPI efetivo≈21.44 | faixas combinadas=False | moldura ignorada=False | fallback filtro=False
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Iniciando upload da imagem renderizada (hash=sha256:8e110e8bade60fd6cde5d264ebb4762079e9603fbc412422773540691f9470eb)
+dbug: FileWatcherApp.Services.DXFAnalysis.Storage.S3ImageStorageClient[0]
+      Verificando existência de facas-renders/renders/sha256_8e110e8bade60fd6cde5d264ebb4762079e9603fbc412422773540691f9470eb/nr_515196.png antes do upload
+info: FileWatcherApp.Services.DXFAnalysis.Storage.S3ImageStorageClient[0]
+      Enviando imagem para facas-renders/renders/sha256_8e110e8bade60fd6cde5d264ebb4762079e9603fbc412422773540691f9470eb/nr_515196.png (tentativa 1/3)
+info: FileWatcherApp.Services.DXFAnalysis.Storage.S3ImageStorageClient[0]
+      Upload concluído para facas-renders/renders/sha256_8e110e8bade60fd6cde5d264ebb4762079e9603fbc412422773540691f9470eb/nr_515196.png (ETag="0b8c2cdc18f918d00ec136e817896091")
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Upload concluído: facas-renders/renders/sha256_8e110e8bade60fd6cde5d264ebb4762079e9603fbc412422773540691f9470eb/nr_515196.png (uploaded)
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Resultado publicado analysisId=b7e08f0a-b974-49b7-824b-1016fde88cc4 file=NR 515196.dxf score=2.76 duration=1212ms
+dbug: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisCache[0]
+      Cache salvo em C:\FacasDXF\Cache/sha256_8e110e8bade60fd6cde5d264ebb4762079e9603fbc412422773540691f9470eb.analysis.json
+dbug: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisCache[0]
+      Cache hit para hash sha256:8e110e8bade60fd6cde5d264ebb4762079e9603fbc412422773540691f9470eb
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Cache hit com imagem remota (hash=sha256:8e110e8bade60fd6cde5d264ebb4762079e9603fbc412422773540691f9470eb)
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Resultado publicado analysisId=ec9f0460-f36b-4d40-af8f-38dba80e684c file=NR 515196.dxf score=2.76 duration=13ms
+dbug: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Pong enviado. corrId=(null) replyTo=amq.gen-5R9UpIcQb7VbKKKHFwas1A
+dbug: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Pong enviado. corrId=(null) replyTo=amq.gen-zJijCNbGvozdVXS3hSbltA
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Parando DXFAnalysisWorker...
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      Encerrando FileWatcherService...
+info: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Encerrando RpcPingResponderService...

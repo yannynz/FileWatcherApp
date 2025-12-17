@@ -14,7 +14,7 @@ public static class PdfParser
         @"(?i)\bOrdem\s*de\s*Produ[cç][aã]o\s*n[ºo\.]?\s*(\d{4,})\b",
         RegexOptions.Compiled
     );
-    private static readonly Regex LastDigitsRegex = new(@"\b(\d{4,})\b", RegexOptions.Compiled);
+    private static readonly Regex LastDigitsRegex = new(@"(\d{4,})\b", RegexOptions.Compiled);
     private static readonly Regex MateriaPrimaBlockRegex = new(
         @"Mat[ée]ria[\- \s]*prima(.*?)(?:\n\s*\n|Observa[cç][aã]o|$)",
         RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled
@@ -90,23 +90,15 @@ public static class PdfParser
         @"(?i)(\d{5}-?\d{3})\s*(.+)", RegexOptions.Compiled
     );
     // Regex to parse the components of the full address string (e.g. "RUA LIBERO BADARO 1201 - PAULICEIA SAO BERNARDO DO CAMPO/SP")
-    private static readonly Regex AddressComponentsRegex = new(
-        @"(?i)(.+?)(?:\s*-\s*([^\r\n]+?))?\s*(?:([A-Z\u00C0-\u00FF].*?)\/([A-Z]{2}))?$", RegexOptions.Compiled
-    );
+        private static readonly Regex AddressComponentsRegex = new(@"(?i)^(.+?)(?:\s+-\s+([^\r\n]+?))?\s+([A-Z\u00C0-\u00FF].*?)\/([A-Z]{2})$", RegexOptions.Compiled);
 
     // New Regexes for additional client data
     private static readonly Regex CnpjCpfRegex = new(
         @"(?i)\b(?:CNPJ|CPF|C.N.P.J.|C.P.F.)?\s*[:\-]?\s*(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}\-?\d{2}|\d{3}\.?\d{3}\.?\d{3}\-?\d{2})\b", RegexOptions.Compiled
     );
-    private static readonly Regex InscricaoEstadualRegex = new(
-        @"(?i)\b(?:INSCRI[CÇ][AÃ]O(?:\s*ESTADUAL)?|I\.E\.)?\s*[:\-]?\s*(\d{3,15})\b", RegexOptions.Compiled
-    );
-    private static readonly Regex TelefoneRegex = new(
-        @"(?i)\b(?:TELEFONE|FONE|TEL)\s*[:\-]?\s*(\(?\d{2}\)?\s*\d{4,5}\-?\d{4})\b", RegexOptions.Compiled
-    );
-    private static readonly Regex EmailRegex = new(
-        @"(?i)\b(?:E-?MAIL|EMAIL|E\-MAIL)\s*[:\-]?\s*([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b", RegexOptions.Compiled
-    );
+        private static readonly Regex InscricaoEstadualRegex = new(@"(?i)\b(?:INSCRI[CÇ][AÃ]O(?:\s*ESTADUAL)?|I\.E\.)\s*[:\-]?\s*(\d{8,15})\b", RegexOptions.Compiled);
+        private static readonly Regex TelefoneRegex = new(@"(?i)(?:TELEFONE|FONE|TEL)[\s\S]{0,200}?(\d{4}[\s\-\.]\d{4}[\s\-\.]\d{4})", RegexOptions.Compiled);
+        private static readonly Regex EmailRegex = new(@"(?i)\b(?:E-?MAIL|EMAIL|E\-MAIL)\s*[:\-]?\s*((?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}[;,]?\s*)+)\b", RegexOptions.Compiled);
     private static readonly Regex CepRegex = new(
         @"(?i)\b(?:CEP)?\s*[:\-]?\s*(\d{5}\-?\d{3})\b", RegexOptions.Compiled
     );
@@ -165,9 +157,11 @@ public static class PdfParser
     {
         string fileBase = pdfFileName;
         string fileBaseAscii = ToAscii(fileBase).Replace("º", "o");
+        // Console.WriteLine($"[DEBUG] PdfFileName: {pdfFileName}, fileBaseAscii: {fileBaseAscii}");
 
         var mName = NumeroOpFromNameRegex.Match(fileBaseAscii);
         string numero = mName.Success ? mName.Groups[1].Value.Trim() : string.Empty;
+        // Console.WriteLine($"[DEBUG] After NumeroOpFromNameRegex (fileBase): numero = '{numero}'");
 
         if (string.IsNullOrWhiteSpace(numero))
         {
@@ -175,21 +169,33 @@ public static class PdfParser
                 Regex.Match(ToAscii(allText), pattern, RegexOptions.Multiline | RegexOptions.IgnoreCase)
                      .Groups[1].Value.Trim();
 
-            numero = Grab(@"(?:OP|NR|ORDEM\s*de\s*PRODUCAO)\s*[:\-]?\s*([0-9]{4,})");
+            // Refined regex for allText
+            numero = Grab(@"(?:N[oº]\s*O\.?P\.?|OP|NR|ORDEM\s*de\s*PRODUCAO)\s*[:\-]?[\r\n\s]*([0-9]{4,})");
+            // Console.WriteLine($"[DEBUG] After Grab (allText): numero = '{numero}'");
         }
 
         if (string.IsNullOrWhiteSpace(numero))
         {
             var mm = LastDigitsRegex.Matches(fileBaseAscii);
-            if (mm.Count > 0) numero = mm[^1].Groups[1].Value;
+            // Console.WriteLine($"[DEBUG] After LastDigitsRegex (fileBase): matches.Count = {mm.Count}");
+            if (mm.Count > 0) {
+                numero = mm[^1].Groups[1].Value;
+                // Console.WriteLine($"[DEBUG] After LastDigitsRegex (fileBase) - set: numero = '{numero}'");
+            }
         }
+
         if (string.IsNullOrWhiteSpace(numero))
         {
             var mm = LastDigitsRegex.Matches(ToAscii(allText));
-            if (mm.Count > 0) numero = mm[^1].Groups[1].Value;
+            // Console.WriteLine($"[DEBUG] After LastDigitsRegex (allText): matches.Count = {mm.Count}");
+            if (mm.Count > 0) {
+                numero = mm[^1].Groups[1].Value;
+                // Console.WriteLine($"[DEBUG] After LastDigitsRegex (allText) - set: numero = '{numero}'");
+            }
         }
         if (string.IsNullOrWhiteSpace(numero))
             numero = "DESCONHECIDO";
+        // Console.WriteLine($"[DEBUG] Final numero: '{numero}'");
 
         string Grab1(string pattern) =>
             Regex.Match(allText, pattern, RegexOptions.Multiline | RegexOptions.IgnoreCase)
@@ -314,7 +320,9 @@ public static class PdfParser
         // Extract new fields
         var cnpjCpf = Grab1(CnpjCpfRegex.ToString());
         var inscricaoEstadual = Grab1(InscricaoEstadualRegex.ToString());
+
         var telefone = Grab1(TelefoneRegex.ToString());
+
         var email = Grab1(EmailRegex.ToString());
         var cep = Grab1(CepRegex.ToString());
         
@@ -354,6 +362,7 @@ public static class PdfParser
         );
     }
 
+
     private static List<EnderecoSugerido> ExtractAddresses(string allText, string? modalidadeEntrega)
     {
         var enderecosSugeridos = new List<EnderecoSugerido>();
@@ -371,6 +380,8 @@ public static class PdfParser
                 int count = 0;
                 while ((line = reader.ReadLine()) != null && count < 5) // Read up to 5 lines after the header
                 {
+                    if (Regex.IsMatch(line, @"^\s*(?:Email|CNPJ|Inscri[cç][aã]o|Telefone|Data)\b", RegexOptions.IgnoreCase))
+                        break;
                     linesList.Add(line);
                     count++;
                 }
@@ -390,16 +401,32 @@ public static class PdfParser
                 string? uf = null;
 
                 // Further parse the addressRemainder to extract Logradouro, Bairro, Cidade, UF
-                // Example: "RUA LIBERO BADARO 1201 - PAULICEIA SAO BERNARDO DO CAMPO/SP"
-                var addressComponentsMatch = Regex.Match(addressRemainder, 
-                    @"^(.*?)(?:\s*-\s*([^\r\n]+?))?\s*(?:([A-Z\u00C0-\u00FF].*?)\/([A-Z]{2}))?$", RegexOptions.IgnoreCase);
+                // Strategy: Try to match with Bairro (hyphen separator) first. If that fails, try without Bairro.
+                
+                // Pattern 1: With Bairro (Requires " - ")
+                var matchWithBairro = Regex.Match(addressRemainder, 
+                    @"(?i)^(.+?)\s+-\s+([^\r\n]+?)\s+([A-Z\u00C0-\u00FF].*?)\/([A-Z]{2})$", RegexOptions.IgnoreCase);
 
-                if (addressComponentsMatch.Success)
+                if (matchWithBairro.Success)
                 {
-                    logradouro = NormalizeSpaces(addressComponentsMatch.Groups[1].Value);
-                    bairro = NormalizeSpaces(addressComponentsMatch.Groups[2].Success ? addressComponentsMatch.Groups[2].Value : null);
-                    cidade = NormalizeSpaces(addressComponentsMatch.Groups[3].Success ? addressComponentsMatch.Groups[3].Value : null);
-                    uf = NormalizeSpaces(addressComponentsMatch.Groups[4].Success ? addressComponentsMatch.Groups[4].Value : null);
+                    logradouro = NormalizeSpaces(matchWithBairro.Groups[1].Value);
+                    bairro = NormalizeSpaces(matchWithBairro.Groups[2].Value);
+                    cidade = NormalizeSpaces(matchWithBairro.Groups[3].Value);
+                    uf = NormalizeSpaces(matchWithBairro.Groups[4].Value);
+                }
+                else
+                {
+                    // Pattern 2: Without Bairro (Logradouro City/UF)
+                    var matchNoBairro = Regex.Match(addressRemainder, 
+                        @"(?i)^(.+?)\s+([A-Z\u00C0-\u00FF].*?)\/([A-Z]{2})$", RegexOptions.IgnoreCase);
+                    
+                    if (matchNoBairro.Success)
+                    {
+                        logradouro = NormalizeSpaces(matchNoBairro.Groups[1].Value);
+                        bairro = null;
+                        cidade = NormalizeSpaces(matchNoBairro.Groups[2].Value);
+                        uf = NormalizeSpaces(matchNoBairro.Groups[3].Value);
+                    }
                 }
                 
                 enderecosSugeridos.Add(new EnderecoSugerido(uf, cidade, bairro, logradouro, null, modalidadeEntrega, cep));

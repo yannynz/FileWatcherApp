@@ -93,32 +93,44 @@ public sealed class FileCommandConsumer : BackgroundService
         {
             var filename = Path.GetFileName(oldPath);
             
-            var regex = new Regex($@"(NR|CL){command.Nr}.*_(VERMELHO|AMARELO|AZUL|VERDE)(?:\.CNC)?$", RegexOptions.IgnoreCase);
-            
-            if (regex.IsMatch(filename))
+            // Check if file truly corresponds to the number (avoid partial matches like matching 123 in 1234)
+            if (!Regex.IsMatch(filename, $@"(?:^|[^0-9]){Regex.Escape(command.Nr)}(?:[^0-9]|$)", RegexOptions.IgnoreCase))
             {
-                string folder = Path.GetDirectoryName(oldPath) ?? string.Empty;
-                string nameWithoutExt = Path.GetFileNameWithoutExtension(oldPath);
-                string ext = Path.GetExtension(oldPath);
+                continue;
+            }
 
-                string newNameWithoutExt = Regex.Replace(nameWithoutExt, 
-                    @"_(VERMELHO|AMARELO|AZUL|VERDE)$", 
-                    $"_{command.NewPriority}", 
-                    RegexOptions.IgnoreCase);
+            string folder = Path.GetDirectoryName(oldPath) ?? string.Empty;
+            string nameWithoutExt = Path.GetFileNameWithoutExtension(oldPath);
+            string ext = Path.GetExtension(oldPath);
 
-                if (newNameWithoutExt == nameWithoutExt) continue; 
+            string newPrioritySuffix = $"_{command.NewPriority.ToUpperInvariant()}";
+            string newNameWithoutExt = nameWithoutExt;
 
-                string newPath = Path.Combine(folder, newNameWithoutExt + ext);
+            var priorityRegex = new Regex(@"_(VERMELHO|AMARELO|AZUL|VERDE)$", RegexOptions.IgnoreCase);
+            
+            if (priorityRegex.IsMatch(nameWithoutExt))
+            {
+                // Replace existing priority
+                newNameWithoutExt = priorityRegex.Replace(nameWithoutExt, newPrioritySuffix);
+            }
+            else
+            {
+                // Append new priority
+                newNameWithoutExt += newPrioritySuffix;
+            }
 
-                try
-                {
-                    File.Move(oldPath, newPath);
-                    _logger.LogInformation("[RENAME] {Old} -> {New}", filename, Path.GetFileName(newPath));
-                }
-                catch (IOException ex)
-                {
-                    _logger.LogError(ex, "Falha ao renomear {File}", filename);
-                }
+            if (string.Equals(newNameWithoutExt, nameWithoutExt, StringComparison.OrdinalIgnoreCase)) continue; 
+
+            string newPath = Path.Combine(folder, newNameWithoutExt + ext);
+
+            try
+            {
+                File.Move(oldPath, newPath);
+                _logger.LogInformation("[RENAME] {Old} -> {New}", filename, Path.GetFileName(newPath));
+            }
+            catch (IOException ex)
+            {
+                _logger.LogError(ex, "Falha ao renomear {File}", filename);
             }
         }
 

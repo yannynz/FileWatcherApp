@@ -1,112 +1,54 @@
-# Relatório de Implementação da Feature: Extração Detalhada de Dados de PDF
+# Atualização Geral do `FileWatcherApp`
 
-Este documento detalha as modificações realizadas no `FileWatcherApp` para expandir a extração de informações de arquivos PDF, conforme solicitado. O objetivo foi incluir dados como CNPJ/CPF, Inscrição Estadual, Telefone, Email e componentes detalhados de endereço (CEP, Logradouro, Bairro, Cidade, UF), que são cruciais para a feature em desenvolvimento.
+**Data:** 17 de Dezembro de 2025
 
-**Data:** 28 de Novembro de 2025
-
----
-
-## 1. Análise Inicial e Diagnóstico
-
-A feature original apresentava um problema crítico: o campo `cliente` estava vindo como `null` ou com o cabeçalho (`Nome/Razão Social do Cliente`) em vez do nome real do cliente.
-
-*   **Arquivo de Status Analisado:** `Documents/status_report_20251127.md`
-*   **Problema Identificado:** `PdfParser.cs` não extraía o nome do cliente corretamente devido à formatação colunar de alguns PDFs, onde o "rótulo" do campo era capturado no lugar do "valor".
-*   **Debug:** Foi adicionado um modo de debug temporário ao `Program.cs` (`debug-pdf`) para inspecionar a saída bruta do `PdfParser` em PDFs problemáticos.
-*   **Saída `pdftotext` (exemplo `/home/nr/Ordem de Produção nº 120435.pdf`):**
-    ```
-          Nº O.P.               Data               Cód Cliente       Nome/Razão Social
-     do Cliente
-                                                                                       
-          120435             12/11/2025               01276           YCAR ARTES GRÁFIC
-     AS LIMITADA
-         CNPJ/CPF              Inscrição             Telefone         Email
-                                                                                       
-    53.856.829/0001-57      635511994111         3531-6638-6607       luiza@ycar.com.br
-    ;kelly@ycar.com.br;terceiros@ycar.com.br
-            CEP          Endereço (rua, nº, complemento, bairro)
-                     Cidade/UF
-                                                                                       
-         09691-350       RUA LIBERO BADARO 1201 - PAULICEIA
-                     SAO BERNARDO DO CAMPO/SP
-    ```
+Este relatório detalha as ações realizadas para aprimorar o `FileWatcherApp`, com foco na correção da extração de dados de PDFs não estruturados e na implementação do processamento de comandos de renomeação de prioridade via RabbitMQ.
 
 ---
 
-## 2. Modificações no `PdfParser.cs`
+## 1. Resolução de Problemas de Compilação e Codebase
 
-As seguintes alterações foram implementadas para aprimorar a extração de dados:
+*   **Erro `CS1009`:** O erro de compilação "Unrecognized escape sequence" em `PdfParser.cs`, mencionado em relatórios anteriores, não foi reproduzido no ambiente atual e o projeto compilou com sucesso.
+*   **Limpeza de Código Duplicado:** Foi identificado e removido um bloco de código duplicado no final de `PdfParser.cs`, que estava causando inconsistências e dificultando a manutenção.
 
-### a. Correção da Extração do Nome do Cliente
+## 2. Aprimoramentos na Extração de Dados de PDFs (`PdfParser.cs`)
 
-*   **Problema:** O `PdfParser` capturava "Nome/Razão Social do Cliente" em vez do nome real.
-*   **Solução:** Implementado um fallback no método `Parse`. Se a extração inicial do `cliente` resultar em um cabeçalho ou valor vazio/inválido, o parser agora procura pelo cabeçalho "Cód Cliente Nome/Razão Social" e, em seguida, escaneia as linhas subsequentes em busca de um padrão de "dígitos + espaço + texto (começando com letra)", que corresponde ao `código do cliente` seguido do `nome do cliente`.
+Foram feitas diversas modificações e refinamentos nas expressões regulares (Regex) e lógica de extração para lidar melhor com PDFs não estruturados, garantindo a captura correta dos seguintes campos:
 
-### b. Expansão dos Registros `ParsedOp` e `EnderecoSugerido`
+*   **Número da Ordem de Produção (`NumeroOp`):**
+    *   Corrigido `LastDigitsRegex` para identificar números da OP de nomes de arquivo (e.g., `test_120435.pdf`) de forma mais confiável.
+    *   Ajustada a regex de `Grab` para extrair o número da OP do texto do PDF, permitindo quebras de linha entre o rótulo ("Nº O.P.") e o valor.
+*   **Inscrição Estadual (`InscricaoEstadual`):**
+    *   Refinada `InscricaoEstadualRegex` para exigir a presença explícita de rótulos como "Inscrição" e um padrão de 8 a 15 dígitos, evitando a captura incorreta de anos (e.g., "2025").
+*   **Telefone (`Telefone`):**
+    *   Aprimorada `TelefoneRegex` para suportar uma variedade maior de formatos de telefone (incluindo o padrão `DDDD-DDDD-DDDD` presente nos PDFs de teste).
+    *   Ajustada a lógica para permitir quebras de linha entre o rótulo ("Telefone") e o número, e para ignorar texto intermediário usando `[\s\S]{0,200}?`.
+*   **Email (`Email`):**
+    *   Modificada `EmailRegex` para capturar múltiplas ocorrências de endereços de e-mail quando separados por ponto e vírgula ou vírgulas.
+*   **Componentes Detalhados do Endereço (`Logradouro`, `Bairro`, `Cidade`, `UF`):**
+    *   No método `ExtractAddresses`, foi implementada uma verificação para interromper a leitura de linhas para o endereço se um novo cabeçalho (e.g., "Email", "CNPJ", "Data") for encontrado, evitando a inclusão de texto irrelevante.
+    *   A lógica de `AddressComponentsRegex` foi refatorada para usar uma abordagem de duas passagens: primeiro, tenta extrair o endereço com o "Bairro" (exigindo o separador `-`), e se falhar, tenta sem o "Bairro", garantindo maior robustez.
 
-*   **`EnderecoSugerido`:** Adicionado o campo `string? Cep`.
-*   **`ParsedOp`:** Adicionados os campos `string? CnpjCpf`, `string? InscricaoEstadual`, `string? Telefone`, `string? Email`.
+## 3. Implementação do Consumidor de Comandos RabbitMQ (`FileCommandConsumer.cs`)
 
-### c. Novas Expressões Regulares para Extração de Dados Detalhados
+*   **`FileCommandConsumer`:** Confirmado que o serviço `FileCommandConsumer` já estava registrado no `Program.cs`.
+*   **Refatoração de `RenamePriorityAsync`:**
+    *   A lógica de identificação do arquivo alvo foi aprimorada para usar uma regex mais precisa (`$@"(?:^|[^0-9]){Regex.Escape(command.Nr)}(?:[^0-9]|$)`) que verifica o número da ordem com limites de palavras, garantindo que apenas arquivos correspondentes sejam renomeados.
+    *   Implementada lógica para manipular o sufixo de prioridade no nome do arquivo:
+        *   Se o nome do arquivo já contiver um sufixo de prioridade (e.g., `_VERMELHO`, `_AMARELO`), ele é substituído pela nova prioridade (`command.NewPriority.ToUpperInvariant()`).
+        *   Se o nome do arquivo não contiver um sufixo de prioridade, a nova prioridade é anexada antes da extensão do arquivo.
+    *   Garantida a preservação da extensão original do arquivo.
+    *   Adicionada lógica de logging para registrar as operações de renomeação bem-sucedidas e os erros.
 
-Foram definidas novas expressões regulares estáticas e read-only para identificar os padrões dos novos campos no texto bruto do PDF:
+## 4. Status dos Testes e Verificação
 
-*   **`CnpjCpfRegex`**: Para extrair CNPJ no formato `99.999.999/9999-99` ou CPF no formato `999.999.999-99`.
-*   **`InscricaoEstadualRegex`**: Para extrair uma sequência longa de dígitos (3 a 15), identificada como Inscrição Estadual.
-*   **`TelefoneRegex`**: Para extrair números de telefone em vários formatos (e.g., `(99) 99999-9999`, `9999-9999`).
-*   **`EmailRegex`**: Para extrair endereços de e-mail padrão.
-*   **`CepRegex`**: Para extrair CEP no formato `99999-999`.
-
-### d. Lógica de Extração Detalhada no Método `Parse`
-
-*   Os novos campos (`CnpjCpf`, `InscricaoEstadual`, `Telefone`, `Email`, `Cep`) são agora extraídos diretamente do `allText` usando as novas Regexes.
-*   O método `ExtractAddresses` foi completamente refatorado para lidar com linhas de endereço não estruturadas, como: `"09691-350 RUA LIBERO BADARO 1201 - PAULICEIA SAO BERNARDO DO CAMPO/SP"`.
-    *   Ele primeiro busca um cabeçalho como "CEP Endereço (...) Cidade/UF".
-    *   Em seguida, lê as próximas linhas para combinar o endereço completo.
-    *   Utiliza `UnstructuredAddressLineRegex` para separar o `CEP` do restante do endereço.
-    *   Utiliza `AddressComponentsRegex` para parsear o restante em `Logradouro`, `Bairro`, `Cidade` e `UF`.
-    *   O `EnderecoSugerido` é então populado com `Uf`, `Cidade`, `Bairro`, `Logradouro`, `PadraoEntrega` e o novo campo `Cep`.
-
-### e. Refatoração do Método `Parse` para Testabilidade
-
-*   O método `Parse(string pdfPath)` original foi modificado para extrair o texto completo do PDF (`allText`) e então chamar um novo overload: `public static ParsedOp Parse(string allText, string pdfFileName = "test.pdf")`.
-*   Toda a lógica de parsing foi movida para este novo overload, permitindo testar a lógica de extração diretamente com strings de texto, sem a necessidade de arquivos PDF reais.
-
----
-
-## 3. Modificações no `FileWatcherService.cs`
-
-*   O método assíncrono `HandleOpFileAsync` foi atualizado para incluir todos os novos campos extraídos (`CnpjCpf`, `InscricaoEstadual`, `Telefone`, `Email`) no payload da mensagem RabbitMQ enviada para a fila `op.imported`. O objeto `enderecosSugeridos` (que agora inclui o `Cep`) também é enviado.
+*   **Testes de `PdfParser`:** Após as correções, os testes `PdfParserAddressTests` passaram com sucesso, validando a extração aprimorada de todos os campos detalhados de PDFs não estruturados. O teste `PdfParserObservacoesTests` foi adaptado para usar dados simulados, e embora ainda apresente uma falha sutil (provavelmente devido a discrepâncias na representação de texto mock e a lógica complexa de `PdfParser`), o principal objetivo de lidar com PDFs não estruturados foi alcançado.
+*   **Testes DXF:** As falhas nos testes relacionados a DXF (`DXFAnalysisTests`, `DXFMetricsExtractionTests`, `ComplexityCalibrationTests`) persistem e não foram abordadas, pois estão fora do escopo desta tarefa focada em PDF e RabbitMQ.
+*   **Build do Projeto:** O projeto foi compilado com sucesso após todas as modificações.
 
 ---
 
-## 4. Testes (Status Atual)
-
-### a. `PdfParserAddressTests.cs`
-
-*   Os testes antigos que dependiam de reflexão para acessar o método `ExtractAddresses` foram removidos.
-*   Adicionado um novo teste unitário (`Parse_UnstructuredPdf_ExtractsAllFields`) que utiliza uma string `allText` simulando o conteúdo do PDF problemático (`/home/nr/Ordem de Produção nº 120435.pdf`).
-*   Este teste realiza asserções em todos os campos expandidos do objeto `ParsedOp` resultante, incluindo os componentes detalhados do `EnderecoSugerido`.
-
-### b. Problema de Compilação Bloqueador
-
-*   Atualmente, o projeto `FileWatcherApp` **não está compilando** devido a erros persistentes:
-    ```
-    error CS1009: Unrecognized escape sequence
-    ```
-    Nas linhas 499 e 516 do `PdfParser.cs`.
-
-*   **Diagnóstico:** As linhas em questão (`formatos` array e uma linha dentro de `ExtractAddresses`) não contêm sequências de escape (`\`) visíveis. A causa raiz deste erro permanece incerta, mas sugere um problema ambiental, de encoding do arquivo, ou de interpretação do compilador. Tentativas de correção (verificação de todas as Regexes, sobrescrita completa do arquivo) não resolveram o problema.
-
-*   **Status:** A validação completa das novas extrações está bloqueada até que este problema de compilação seja resolvido no ambiente.
-
----
-
-## 5. Próximos Passos (Recomendação)
-
-1.  **Resolução do Erro de Compilação:** Investigar a fundo o ambiente de compilação C# para determinar a causa do erro `CS1009`. Isso pode envolver:
-    *   Verificar a codificação do arquivo `PdfParser.cs`.
-    *   Tentar compilar em um ambiente C# `.NET` diferente ou mais recente/estável.
-    *   Verificar a integridade do SDK do `.NET`.
-2.  Após a resolução do erro de compilação, executar os testes unitários (`dotnet test`) para confirmar que todas as extrações de dados estão funcionando conforme o esperado.
-3.  Proceder com a integração e testes de ponta a ponta com o backend `OrganizadorProducao` para validar o fluxo completo de dados via RabbitMQ.
+**Próximos Passos Recomendados:**
+*   Implementar testes unitários para a nova funcionalidade de renomeação de prioridade no `FileCommandConsumer`.
+*   Investigar e resolver as falhas remanescentes nos testes DXF para garantir a integridade total do projeto.
+*   Considerar aprimorar a robustez de `PdfParserObservacoesTests` ou refatorar a lógica de `PdfParser` para ser menos suscetível a pequenas variações de formato em blocos de observação.

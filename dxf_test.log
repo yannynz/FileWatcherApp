@@ -1,0 +1,79 @@
+[BOOT] Environment=Development ConfigFiles=appsettings.json, appsettings.Development.json
+[BOOT] OS=Debian GNU/Linux 13 (trixie) Arch=X64 Machine=ynz
+[BOOT] Scoring=19 NumCurvesWeight=0.6 ExtraThresholds=4 FirstExtra=140/0.25 StepWeight=0.2
+info: FileWatcherApp.Messaging.RabbitMqConnection[0]
+      RabbitMQ conectado em 127.0.0.1:5672 vhost=/
+info: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      RPC responder ouvindo fila filewatcher.rpc.ping
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [BOOT] FileWatcherService em Debian GNU/Linux 13 (trixie) (X64) Machine='ynz'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [CFG] Pastas monitoradas: Laser='/home/ynz/Documents/FileWatcherApp/test_env/laser_output' Facas='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' Dobras='/home/ynz/Documents/FileWatcherApp/test_env/dxf_output' Ops='/home/ynz/Documents/FileWatcherApp/test_env/ops_input' Destacador='/home/ynz/Documents/FileWatcherApp/test_env/laser_output/DESTACADOR'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-LASER] Ativo em '/home/ynz/Documents/FileWatcherApp/test_env/laser_output' (Queue=laser_notifications)
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Ativo em '/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' (Queue=facas_notifications)
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-DOBRAS] Ativo em '/home/ynz/Documents/FileWatcherApp/test_env/dxf_output' (Queue=dobra_notifications)
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-OPS] Ativo em '/home/ynz/Documents/FileWatcherApp/test_env/ops_input' (Queue=op.imported)
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Iniciando DXFAnalysisWorker... fila=facas.analysis.request paralelismo=4
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Config imagem: persistLocal=False storageEnabled=True provider=s3 endpoint=http://127.0.0.1:9000 bucket=facas-renders keyPrefix=renders
+info: FileWatcherApp.Messaging.FileCommandConsumer[0]
+      FileCommandConsumer ouvindo fila file_commands
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: /home/ynz/Documents/FileWatcherApp
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Created file='NR119812.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR119812.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Changed file='NR119812.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR119812.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Created file='NR 120184.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 120184.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Changed file='NR 120184.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 120184.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Created file='NR 120247.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 120247.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Changed file='NR 120247.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 120247.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Created file='NR 120253.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 120253.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Changed file='NR 120253.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 120253.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Created file='NR 120258.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 120258.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Changed file='NR 120258.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 120258.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Created file='NR 515194.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 515194.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Changed file='NR 515194.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 515194.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Created file='NR 515195.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 515195.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Changed file='NR 515195.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 515195.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Created file='NR 515196.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 515196.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Changed file='NR 515196.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 515196.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Created file='NR 515198.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 515198.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Changed file='NR 515198.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 515198.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Created file='NR 515199.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 515199.dxf'
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      [WATCHER-FACAS] Changed file='NR 515199.dxf' dir='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input' full='/home/ynz/Documents/FileWatcherApp/test_env/dxf_input/NR 515199.dxf'
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
+      Parando DXFAnalysisWorker...
+info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
+      Encerrando FileWatcherService...
+info: FileWatcherApp.Messaging.RpcPingResponderService[0]
+      Encerrando RpcPingResponderService...
