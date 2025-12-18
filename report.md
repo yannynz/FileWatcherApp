@@ -4,6 +4,18 @@ Este relatório documenta as ações tomadas, as validações realizadas e os po
 
 ---
 
+## 2025-12-18 - Testes integrados com o Organizador
+
+1. Ajustei `publish/win-x64/appsettings.Production.json` para usar o endpoint MinIO em `192.168.10.13` (tanto `Endpoint` quanto `PublicBaseUrl`).
+2. Subi o stack do Organizador (`docker compose up --build -d`); serviços sobem, porém o `/actuator/health` continua `DOWN` (erro de migração para converter `clientes.apelidos` em `jsonb` aparece no log de boot).
+3. Iniciei o FileWatcher em produção (`DOTNET_ENVIRONMENT=Production dotnet run --project FileWatcherApp.csproj`, PID 116928) com as pastas `./test_env/*`, Rabbit em `192.168.10.13:5672` e MinIO em `192.168.10.13:9000`.
+4. Testei alteração de prioridade pelo Organizador no pedido NR 514820 (`PATCH /api/orders/4323/priority` -> AZUL). O backend publicou em `file_commands`, mas o FileWatcher falhou ao deserializar o JSON (`JsonException` em `FileCommandConsumer.cs:51`, body ex.: `{"action":"RENAME_PRIORITY","nr":"514820","newPriority":"AZUL","directory":"LASER"}`), então o arquivo `test_env/Laser/NR514820.dxf` não foi renomeado.
+5. Copiei o DXF `NR 120184.dxf` de `/home/ynz/Desktop/ferreira` para `test_env/FacasDXF/`; o watcher registrou create/change, mas não surgiu novo item em `facas.analysis.request` nem nova linha em `dxf_analysis` (últimas análises seguem de 17/12 com imagens apontando para 192.168.0.116/127.0.0.1).
+6. Copiei o PDF `Ordem de Produção nº 120430.pdf` para `test_env/Ops/`; o watcher publicou `op.imported` e o backend gravou `op_import.id=671` (cliente “GONCALVES S/A INDUSTRIA GRAFICA”, endereço resolvido “AVENIDA RIBEIRAO DOS CRISTAIS (G PRETO) 340, PAINEIRA CAJAMAR/SP 07775-240”).
+7. Mantive o FileWatcher rodando em background para novos testes; filas RabbitMQ estão vazias após consumo e o fluxo de renomeio segue bloqueado pelo erro de desserialização em `file_commands`.
+
+---
+
 ## 1. Ajuste dos Botões na Tela de Montagem (`montagem.component.html`)
 
 **Problema Original:** Os botões "Ver Imagem", "Ver Histórico" e "Ver Componentes" estavam com layout inadequado no desktop, dificultando a usabilidade.
@@ -124,3 +136,17 @@ O problema foi identificado com base no log `Failed to refresh user profile Obje
 Por favor, tente logar novamente com as credenciais de um operador que estava com problemas. O login agora deve ser bem-sucedido, e o perfil do usuário deve ser carregado corretamente no frontend.
 
 ---
+
+## 2025-12-19 - Correções no consumidor e pipeline DXF
+
+1. Adicionei o `FileCommandHandler` para desserializar comandos de forma tolerante (snake_case, números sem aspas, fallback via `JsonDocument`). O `FileCommandConsumer` agora usa esse handler, registra bodies truncados quando inválidos e mantém o ACK/NACK seguro.
+2. Criei o teste automatizado `FileCommandHandlerTests` garantindo parse tolerante e rename de prioridade em diretório temporário.
+3. A pipeline DXF agora publica pedidos de análise mesmo para arquivos `.dxf` fora do padrão (ex.: `NR 120184.dxf`), e o log de publicação foi elevado para `INFO`. Ajustei `DXFAnalysis:RabbitMq` em `appsettings.Production.json` e no publish `win-x64` para `192.168.10.13`.
+4. Build executado (`dotnet build` ok). `dotnet test` segue com falhas antigas nos cenários de complexidade/PDF; o novo teste do handler passou.
+
+## 2025-12-19 - Validação end-to-end pós-fix
+
+1. Reiniciei o FileWatcher em produção (`dotnet run --project FileWatcherApp.csproj`, PID 256741) e verifiquei os watchers e o DXFAnalysisWorker conectados ao Rabbit/MinIO em `192.168.10.13`.
+2. Comando de prioridade reexecutado via API do RabbitMQ: `{ "action":"RENAME_PRIORITY","nr":"514820","newPriority":"AZUL","directory":"LASER" }`. Resultado: `test_env/Laser/NR514820.dxf` renomeado para `NR514820_AZUL.dxf` com log de console do consumer e publicação de request DXF (falha de leitura da DXF por versão não suportada, esperado).
+3. Reforcei a análise DXF copiando `/home/ynz/Desktop/ferreira/NR 120184.dxf` para `test_env/FacasDXF/`: request publicado, análise concluída, upload no MinIO em `facas-renders/renders/sha256_e7773a2c833677ca7c7a63e4661045413b06cf301e1c1c637a1d5084ff1f56df/nr_120184.png`, `score=5`, `analysisId=2f872546-74a3-48fb-817c-561c660fd325`.
+4. OP importação reexecutada copiando `Ordem de Produção nº 120432.pdf` para `test_env/Ops/`; backend consumiu `op.imported` e criou `op_import.id=672` com `cliente_id=3`/`endereco_id=3` (vide relatório do backend). `/actuator/health` permanece `UP`.

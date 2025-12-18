@@ -538,49 +538,60 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
 
         var originalName = e.Name ?? string.Empty;
         var cleanName = FileWatcherNaming.CleanFileName(originalName);
+        var isDxf = string.Equals(Path.GetExtension(originalName), ".dxf", StringComparison.OrdinalIgnoreCase);
 
         if (string.IsNullOrEmpty(cleanName))
         {
-            _logger.LogDebug("Arquivo '{File}' ignorado por formato inválido.", originalName);
-            return;
-        }
-
-        _logger.LogInformation("[PROCESS-{Label}] Arquivo '{Clean}' (orig='{Original}') path='{Path}' queue={Queue}",
-            watcherLabel, cleanName, originalName, e.FullPath, queueName);
-
-        var retryPolicy = new RetryPolicy(maxRetries: 3, initialDelay: TimeSpan.FromSeconds(2));
-
-        try
-        {
-            await retryPolicy.ExecuteAsync(async () =>
+            if (!isDxf)
             {
-                await Task.Delay(100);
+                _logger.LogDebug("Arquivo '{File}' ignorado por formato inválido.", originalName);
+                return;
+            }
 
-                var message = new
-                {
-                    file_name = cleanName,
-                    path = e.FullPath,
-                    timestamp = GetSaoPauloTimestamp()
-                };
-
-                PublishLegacyNotification(queueName, message);
-            });
+            _logger.LogInformation("[PROCESS-{Label}] Arquivo DXF '{Original}' fora do padrão; enviando para análise (queue={Queue})",
+                watcherLabel, originalName, queueName);
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogError(ex, "Erro ao publicar notificação após {Attempts} tentativas", retryPolicy.MaxRetries);
+            _logger.LogInformation("[PROCESS-{Label}] Arquivo '{Clean}' (orig='{Original}') path='{Path}' queue={Queue}",
+                watcherLabel, cleanName, originalName, e.FullPath, queueName);
+
+            var retryPolicy = new RetryPolicy(maxRetries: 3, initialDelay: TimeSpan.FromSeconds(2));
+
+            try
+            {
+                await retryPolicy.ExecuteAsync(async () =>
+                {
+                    await Task.Delay(100);
+
+                    var message = new
+                    {
+                        file_name = cleanName,
+                        path = e.FullPath,
+                        timestamp = GetSaoPauloTimestamp()
+                    };
+
+                    PublishLegacyNotification(queueName, message);
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao publicar notificação após {Attempts} tentativas", retryPolicy.MaxRetries);
+            }
         }
 
-        if (_analysisEnabled)
+        if (_analysisEnabled && isDxf)
         {
             string? opId = null;
-            if (FileWatcherNaming.TryExtractOpId(cleanName, out var extracted))
+            var normalizedForOp = cleanName ?? originalName;
+
+            if (FileWatcherNaming.TryExtractOpId(normalizedForOp, out var extracted))
             {
                 opId = extracted;
             }
 
             var resolvedPath = ResolveAnalysisFilePath(e.FullPath, opId);
-            PublishAnalysisRequest(opId, e.FullPath, resolvedPath, cleanName, queueName);
+            PublishAnalysisRequest(opId, e.FullPath, resolvedPath, normalizedForOp, queueName);
         }
     }
 
@@ -799,7 +810,7 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
             _channel.BasicPublish(exchange: _analysisExchange ?? string.Empty, routingKey: _analysisQueue, basicProperties: props, body: body);
         }
 
-        _logger.LogDebug("[DXF] Request publicado opId={OpId} file='{File}' resolved='{Resolved}'", opId, sourcePath, resolvedPath);
+        _logger.LogInformation("[DXF] Request publicado opId={OpId} file='{File}' resolved='{Resolved}'", opId, sourcePath, resolvedPath);
     }
 
     private string ResolveAnalysisFilePath(string sourcePath, string? opId)
