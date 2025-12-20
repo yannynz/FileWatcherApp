@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -65,6 +66,11 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
         @"^NR(?<nr>\d+)(?<cliente>[A-Z0-9]+)_(?<sexo>MACHO|FEMEA)_(?<cor>[A-Z0-9]+)\.CNC$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
+    private readonly ConcurrentQueue<AnalysisWorkItem> _analysisWorkQueue = new();
+    private readonly SemaphoreSlim _analysisSignal = new(0);
+    private readonly ConcurrentDictionary<string, byte> _analysisDedup = new(StringComparer.OrdinalIgnoreCase);
+    private Task? _analysisWorker;
+
     public FileWatcherService(
         ILogger<FileWatcherService> logger,
         IOptions<FileWatcherOptions> watcherOptions,
@@ -106,6 +112,7 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
         InitializeDirectories();
         InitializeRabbitMq();
         InitializeWatchers();
+        StartAnalysisWorker(stoppingToken);
 
         try
         {
@@ -591,7 +598,7 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
             }
 
             var resolvedPath = ResolveAnalysisFilePath(e.FullPath, opId);
-            PublishAnalysisRequest(opId, e.FullPath, resolvedPath, normalizedForOp, queueName);
+            EnqueueAnalysisRequest(opId, e.FullPath, resolvedPath, normalizedForOp, queueName);
         }
     }
 
@@ -646,7 +653,7 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
             }
 
             var resolvedPath = ResolveAnalysisFilePath(e.FullPath, opId);
-            PublishAnalysisRequest(opId, e.FullPath, resolvedPath, sanitizedName, queueName);
+            EnqueueAnalysisRequest(opId, e.FullPath, resolvedPath, sanitizedName, queueName);
 
             _logger.LogInformation("[DOBRAS] Análise solicitada (NR={Nr}) a partir de '{Original}'", nr, originalName);
             _logger.LogDebug("[DOBRAS] Publicação na fila '{Queue}' suprimida para '{Original}' sem sufixo salvo", queueName, originalName);
@@ -811,6 +818,179 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
         }
 
         _logger.LogInformation("[DXF] Request publicado opId={OpId} file='{File}' resolved='{Resolved}'", opId, sourcePath, resolvedPath);
+    }
+
+    private void EnqueueAnalysisRequest(string? opId, string sourcePath, string resolvedPath, string? normalizedName, string sourceQueue)
+    {
+        if (!_analysisEnabled)
+        {
+            return;
+        }
+
+        if (!_analysisDedup.TryAdd(resolvedPath, 0))
+        {
+            _logger.LogDebug("[DXF] Requisição já enfileirada para '{File}'", resolvedPath);
+            return;
+        }
+
+        _analysisWorkQueue.Enqueue(new AnalysisWorkItem
+        {
+            OpId = opId,
+            SourcePath = sourcePath,
+            ResolvedPath = resolvedPath,
+            NormalizedName = normalizedName,
+            SourceQueue = sourceQueue
+        });
+        _analysisSignal.Release();
+        _logger.LogDebug("[DXF] Requisição enfileirada file='{File}'", resolvedPath);
+    }
+
+    private void StartAnalysisWorker(CancellationToken stoppingToken)
+    {
+        if (!_analysisEnabled)
+        {
+            return;
+        }
+
+        _analysisWorker = Task.Run(() => RunAnalysisWorkerAsync(stoppingToken), stoppingToken);
+    }
+
+    private async Task RunAnalysisWorkerAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await _analysisSignal.WaitAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+
+            while (_analysisWorkQueue.TryDequeue(out var item))
+            {
+                await ProcessAnalysisWorkItemAsync(item, stoppingToken);
+            }
+        }
+    }
+
+    private async Task ProcessAnalysisWorkItemAsync(AnalysisWorkItem item, CancellationToken stoppingToken)
+    {
+        if (stoppingToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (!File.Exists(item.ResolvedPath))
+        {
+            _analysisDedup.TryRemove(item.ResolvedPath, out _);
+            _logger.LogWarning("[DXF] Arquivo não encontrado para análise: '{File}'", item.ResolvedPath);
+            return;
+        }
+
+        const int maxAttempts = 6;
+        var ready = await WaitForStableFileAsync(
+            item.ResolvedPath,
+            maxWait: TimeSpan.FromSeconds(60),
+            sampleInterval: TimeSpan.FromMilliseconds(500),
+            stableSamples: 3,
+            stoppingToken);
+
+        if (!ready)
+        {
+            if (item.Attempts < maxAttempts)
+            {
+                item.Attempts++;
+                var delaySeconds = Math.Min(60, 5 * item.Attempts);
+                _logger.LogWarning("[DXF] Arquivo ainda em uso, refileirando ({Attempt}/{Max}) '{File}'",
+                    item.Attempts, maxAttempts, item.ResolvedPath);
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
+                _analysisWorkQueue.Enqueue(item);
+                _analysisSignal.Release();
+                return;
+            }
+
+            _analysisDedup.TryRemove(item.ResolvedPath, out _);
+            _logger.LogWarning("[DXF] Arquivo não ficou pronto a tempo após {Max} tentativas: '{File}'",
+                maxAttempts, item.ResolvedPath);
+            return;
+        }
+
+        try
+        {
+            PublishAnalysisRequest(item.OpId, item.SourcePath, item.ResolvedPath, item.NormalizedName, item.SourceQueue);
+        }
+        finally
+        {
+            _analysisDedup.TryRemove(item.ResolvedPath, out _);
+        }
+    }
+
+    private static async Task<bool> WaitForStableFileAsync(
+        string path,
+        TimeSpan maxWait,
+        TimeSpan sampleInterval,
+        int stableSamples,
+        CancellationToken stoppingToken)
+    {
+        var deadline = DateTime.UtcNow + maxWait;
+        long? lastSize = null;
+        DateTime? lastWrite = null;
+        var stableCount = 0;
+
+        while (DateTime.UtcNow < deadline && !stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                var info = new FileInfo(path);
+                if (!info.Exists)
+                {
+                    return false;
+                }
+
+                var size = info.Length;
+                var write = info.LastWriteTimeUtc;
+                if (lastSize.HasValue && lastWrite.HasValue && size == lastSize && write == lastWrite)
+                {
+                    stableCount++;
+                }
+                else
+                {
+                    stableCount = 0;
+                    lastSize = size;
+                    lastWrite = write;
+                }
+
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                if (stableCount >= stableSamples)
+                {
+                    return true;
+                }
+            }
+            catch (IOException)
+            {
+                stableCount = 0;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                stableCount = 0;
+            }
+
+            await Task.Delay(sampleInterval, stoppingToken);
+        }
+
+        return false;
+    }
+
+    private sealed class AnalysisWorkItem
+    {
+        public string? OpId { get; init; }
+        public string SourcePath { get; init; } = string.Empty;
+        public string ResolvedPath { get; init; } = string.Empty;
+        public string? NormalizedName { get; init; }
+        public string SourceQueue { get; init; } = string.Empty;
+        public int Attempts { get; set; }
     }
 
     private string ResolveAnalysisFilePath(string sourcePath, string? opId)
