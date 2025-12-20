@@ -446,7 +446,8 @@ public sealed class DXFAnalysisWorker : BackgroundService
     {
         image.StorageKey = result.ObjectKey ?? image.StorageKey;
         image.StorageBucket = result.Bucket ?? image.StorageBucket;
-        image.StorageUri = result.PublicUri?.ToString() ?? image.StorageUri;
+        // Avoid emitting environment-specific absolute URLs; backend composes with base URL + key.
+        image.StorageUri = null;
         image.UploadStatus = result.Status ?? (result.Uploaded ? "uploaded" : "skipped");
         image.UploadedAtUtc ??= DateTimeOffset.UtcNow.ToString("O");
         image.ETag = result.ETag ?? image.ETag;
@@ -603,6 +604,8 @@ public sealed class DXFAnalysisWorker : BackgroundService
 
     private void NormalizeImageInfo(DXFImageInfo image)
     {
+        // Keep payloads portable across environments (no absolute storage URL).
+        image.StorageUri = null;
         if (_options.PersistLocalImageCopy == false)
         {
             image.Path = string.Empty;
