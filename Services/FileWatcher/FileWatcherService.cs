@@ -546,6 +546,7 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
         var originalName = e.Name ?? string.Empty;
         var cleanName = FileWatcherNaming.CleanFileName(originalName);
         var isDxf = string.Equals(Path.GetExtension(originalName), ".dxf", StringComparison.OrdinalIgnoreCase);
+        var skipAnalysis = isDxf && ShouldSkipDxf(originalName);
 
         if (string.IsNullOrEmpty(cleanName))
         {
@@ -587,7 +588,7 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
             }
         }
 
-        if (_analysisEnabled && isDxf)
+        if (_analysisEnabled && isDxf && !skipAnalysis)
         {
             string? opId = null;
             var normalizedForOp = cleanName ?? originalName;
@@ -631,6 +632,7 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
             watcherLabel, sanitizedName, originalName, e.FullPath, queueName);
 
         var hasSavedSuffix = FileWatcherNaming.HasDobrasSavedSuffix(originalName);
+        var skipAnalysis = ShouldSkipDxf(originalName);
 
         if (!await WaitFileReadyAsync(e.FullPath, TimeSpan.FromSeconds(8), TimeSpan.FromMilliseconds(200), 2))
         {
@@ -652,10 +654,16 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
                 opId = extracted;
             }
 
-            var resolvedPath = ResolveAnalysisFilePath(e.FullPath, opId);
-            EnqueueAnalysisRequest(opId, e.FullPath, resolvedPath, sanitizedName, queueName);
-
-            _logger.LogInformation("[DOBRAS] Análise solicitada (NR={Nr}) a partir de '{Original}'", nr, originalName);
+            if (skipAnalysis)
+            {
+                _logger.LogInformation("[DOBRAS] Análise suprimida (sufixo não permitido) para '{File}'", originalName);
+            }
+            else
+            {
+                var resolvedPath = ResolveAnalysisFilePath(e.FullPath, opId);
+                EnqueueAnalysisRequest(opId, e.FullPath, resolvedPath, sanitizedName, queueName);
+                _logger.LogInformation("[DOBRAS] Análise solicitada (NR={Nr}) a partir de '{Original}'", nr, originalName);
+            }
             _logger.LogDebug("[DOBRAS] Publicação na fila '{Queue}' suprimida para '{Original}' sem sufixo salvo", queueName, originalName);
             return;
         }
@@ -981,6 +989,12 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
         }
 
         return false;
+    }
+
+    private static bool ShouldSkipDxf(string fileName)
+    {
+        var upper = (fileName ?? string.Empty).Trim().ToUpperInvariant();
+        return upper.EndsWith(".M.DXF", StringComparison.Ordinal) || upper.EndsWith(".FCD.DXF", StringComparison.Ordinal);
     }
 
     private sealed class AnalysisWorkItem

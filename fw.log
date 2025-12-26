@@ -2,7 +2,7 @@
 [BOOT] OS=Debian GNU/Linux 13 (trixie) Arch=X64 Machine=ynz
 [BOOT] Scoring=19 NumCurvesWeight=0.6 ExtraThresholds=4 FirstExtra=140/0.25 StepWeight=0.2
 info: FileWatcherApp.Messaging.RabbitMqConnection[0]
-      RabbitMQ conectado em 192.168.10.34:5672 vhost=/
+      RabbitMQ conectado em 192.168.10.13:5672 vhost=/
 info: FileWatcherApp.Messaging.RpcPingResponderService[0]
       RPC responder ouvindo fila filewatcher.rpc.ping
 info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
@@ -20,7 +20,7 @@ info: FileWatcherApp.Services.FileWatcher.FileWatcherService[0]
 info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
       Iniciando DXFAnalysisWorker... fila=facas.analysis.request paralelismo=4
 info: FileWatcherApp.Services.DXFAnalysis.DXFAnalysisWorker[0]
-      Config imagem: persistLocal=False storageEnabled=True provider=s3 endpoint=http://192.168.10.34:9000 bucket=facas-renders keyPrefix=renders
+      Config imagem: persistLocal=False storageEnabled=True provider=s3 endpoint=http://192.168.10.13:9000 bucket=facas-renders keyPrefix=renders
 info: FileWatcherApp.Messaging.FileCommandConsumer[0]
       FileCommandConsumer ouvindo fila file_commands
 info: Microsoft.Hosting.Lifetime[0]

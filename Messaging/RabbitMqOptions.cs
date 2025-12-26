@@ -13,4 +13,3 @@ public sealed class RabbitMqOptions
     public bool TopologyRecoveryEnabled { get; set; } = true;
     public int RequestedHeartbeatSeconds { get; set; } = 30;
 }
-
