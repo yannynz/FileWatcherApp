@@ -69,6 +69,8 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
     private readonly ConcurrentQueue<AnalysisWorkItem> _analysisWorkQueue = new();
     private readonly SemaphoreSlim _analysisSignal = new(0);
     private readonly ConcurrentDictionary<string, byte> _analysisDedup = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTime> _recentAnalysis = new(StringComparer.OrdinalIgnoreCase);
+    private readonly TimeSpan _recentAnalysisWindow = TimeSpan.FromSeconds(10);
     private Task? _analysisWorker;
 
     public FileWatcherService(
@@ -841,6 +843,15 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
             return;
         }
 
+        var now = DateTime.UtcNow;
+        PruneRecentAnalysis(now);
+        if (_recentAnalysis.TryGetValue(resolvedPath, out var last) && now - last < _recentAnalysisWindow)
+        {
+            _logger.LogDebug("[DXF] Requisição recente ignorada ({Elapsed}ms) file='{File}'", (now - last).TotalMilliseconds, resolvedPath);
+            return;
+        }
+        _recentAnalysis[resolvedPath] = now;
+
         _analysisWorkQueue.Enqueue(new AnalysisWorkItem
         {
             OpId = opId,
@@ -927,6 +938,12 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
 
         try
         {
+            if (ShouldSkipDxf(item.ResolvedPath))
+            {
+                _logger.LogInformation("[DXF] Análise suprimida para sufixo salvo '{File}'", item.ResolvedPath);
+                return;
+            }
+
             PublishAnalysisRequest(item.OpId, item.SourcePath, item.ResolvedPath, item.NormalizedName, item.SourceQueue);
         }
         finally
@@ -995,6 +1012,18 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
     {
         var upper = (fileName ?? string.Empty).Trim().ToUpperInvariant();
         return upper.EndsWith(".M.DXF", StringComparison.Ordinal) || upper.EndsWith(".FCD.DXF", StringComparison.Ordinal);
+    }
+
+    private void PruneRecentAnalysis(DateTime now)
+    {
+        var threshold = now - _recentAnalysisWindow;
+        foreach (var kvp in _recentAnalysis)
+        {
+            if (kvp.Value < threshold)
+            {
+                _recentAnalysis.TryRemove(kvp.Key, out _);
+            }
+        }
     }
 
     private sealed class AnalysisWorkItem
@@ -1067,7 +1096,7 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
         static int Score(string path)
         {
             var name = Path.GetFileName(path) ?? string.Empty;
-            var savedWeight = FileWatcherNaming.HasDobrasSavedSuffix(name) ? 0 : 1;
+            var savedWeight = FileWatcherNaming.HasDobrasSavedSuffix(name) ? 1 : 0;
 
             var statusWeight = 3;
             if (name.Contains("FINAL", StringComparison.OrdinalIgnoreCase)) statusWeight = 0;
