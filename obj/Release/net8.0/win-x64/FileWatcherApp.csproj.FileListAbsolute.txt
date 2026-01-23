@@ -481,4 +481,4 @@
 /home/ynz/Documents/FileWatcherApp/obj/Release/net8.0/win-x64/FileWatcherApp.pdb
 /home/ynz/Documents/FileWatcherApp/obj/Release/net8.0/win-x64/FileWatcherApp.genruntimeconfig.cache
 /home/ynz/Documents/FileWatcherApp/obj/Release/net8.0/win-x64/ref/FileWatcherApp.dll
-/home/ynz/Documents/FileWatcherApp/bin/Release/net8.0/win-x64/mscordaccore_amd64_amd64_8.0.2225.52707.dll
+/home/ynz/Documents/FileWatcherApp/bin/Release/net8.0/win-x64/mscordaccore_amd64_amd64_8.0.2325.60607.dll
