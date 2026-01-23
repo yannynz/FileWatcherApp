@@ -759,7 +759,7 @@ public sealed class FileWatcherService : BackgroundService, IDisposable
             cnpjCpf = parsed.CnpjCpf,
             inscricaoEstadual = parsed.InscricaoEstadual,
             telefone = parsed.Telefone,
-            email = parsed.Email
+            emailContato = parsed.Email
         };
 
         PublishLegacyNotification(queueName, message);

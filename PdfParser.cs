@@ -89,16 +89,14 @@ public static class PdfParser
     private static readonly Regex UnstructuredAddressLineRegex = new(
         @"(?i)(\d{5}-?\d{3})\s*(.+)", RegexOptions.Compiled
     );
-    // Regex to parse the components of the full address string (e.g. "RUA LIBERO BADARO 1201 - PAULICEIA SAO BERNARDO DO CAMPO/SP")
-        private static readonly Regex AddressComponentsRegex = new(@"(?i)^(.+?)(?:\s+-\s+([^\r\n]+?))?\s+([A-Z\u00C0-\u00FF].*?)\/([A-Z]{2})$", RegexOptions.Compiled);
-
+    
     // New Regexes for additional client data
     private static readonly Regex CnpjCpfRegex = new(
         @"(?i)\b(?:CNPJ|CPF|C.N.P.J.|C.P.F.)?\s*[:\-]?\s*(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}\-?\d{2}|\d{3}\.?\d{3}\.?\d{3}\-?\d{2})\b", RegexOptions.Compiled
     );
-        private static readonly Regex InscricaoEstadualRegex = new(@"(?i)\b(?:INSCRI[CÇ][AÃ]O(?:\s*ESTADUAL)?|I\.E\.)\s*[:\-]?\s*(\d{8,15})\b", RegexOptions.Compiled);
-        private static readonly Regex TelefoneRegex = new(@"(?i)(?:TELEFONE|FONE|TEL)[\s\S]{0,200}?(\d{4}[\s\-\.]\d{4}[\s\-\.]\d{4})", RegexOptions.Compiled);
-        private static readonly Regex EmailRegex = new(@"(?i)\b(?:E-?MAIL|EMAIL|E\-MAIL)\s*[:\-]?\s*((?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}[;,]?\s*)+)\b", RegexOptions.Compiled);
+    private static readonly Regex InscricaoEstadualRegex = new(@"(?i)\b(?:INSCRI[CÇ][AÃ]O(?:\s*ESTADUAL)?|I\.E\.)\s*[:\-]?\s*(\d{8,15})\b", RegexOptions.Compiled);
+    private static readonly Regex TelefoneRegex = new(@"(?i)(?:TELEFONE|FONE|TEL)[\s\S]{0,200}?(\d{4}[\s\-\.]\d{4}[\s\-\.]\d{4})", RegexOptions.Compiled);
+    private static readonly Regex EmailRegex = new(@"(?i)\b(?:E-?MAIL|EMAIL|E\-MAIL)\s*[:\-]?\s*((?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}[;,]?\s*)+)\b", RegexOptions.Compiled);
     private static readonly Regex CepRegex = new(
         @"(?i)\b(?:CEP)?\s*[:\-]?\s*(\d{5}\-?\d{3})\b", RegexOptions.Compiled
     );
@@ -157,11 +155,9 @@ public static class PdfParser
     {
         string fileBase = pdfFileName;
         string fileBaseAscii = ToAscii(fileBase).Replace("º", "o");
-        // Console.WriteLine($"[DEBUG] PdfFileName: {pdfFileName}, fileBaseAscii: {fileBaseAscii}");
 
         var mName = NumeroOpFromNameRegex.Match(fileBaseAscii);
         string numero = mName.Success ? mName.Groups[1].Value.Trim() : string.Empty;
-        // Console.WriteLine($"[DEBUG] After NumeroOpFromNameRegex (fileBase): numero = '{numero}'");
 
         if (string.IsNullOrWhiteSpace(numero))
         {
@@ -169,52 +165,87 @@ public static class PdfParser
                 Regex.Match(ToAscii(allText), pattern, RegexOptions.Multiline | RegexOptions.IgnoreCase)
                      .Groups[1].Value.Trim();
 
-            // Refined regex for allText
-            numero = Grab(@"(?:N[oº]\s*O\.?P\.?|OP|NR|ORDEM\s*de\s*PRODUCAO)\s*[:\-]?[\r\n\s]*([0-9]{4,})");
-            // Console.WriteLine($"[DEBUG] After Grab (allText): numero = '{numero}'");
+            // Refined regex for allText - try standard header pattern
+            numero = Grab(@"(?:N[oº]\s*O\.?.P\.?|OP|NR|ORDEM\s*de\s*PRODUCAO)\s*[:\-]?[
+\s]*([0-9]{4,})");
+            
+            // Fallback for columnar layout: Look for 6 digits followed by a date
+            if (string.IsNullOrWhiteSpace(numero))
+            {
+                var matchColumnar = Regex.Match(allText, @"(?m)^\s*(\d{6})\s+\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}");
+                if (matchColumnar.Success)
+                {
+                    numero = matchColumnar.Groups[1].Value;
+                }
+            }
         }
 
         if (string.IsNullOrWhiteSpace(numero))
         {
+            // Last resort: last 4+ digits, but exclude years like 2024, 2025 if they are near dates?
+            // Current fallback takes the very last number.
             var mm = LastDigitsRegex.Matches(fileBaseAscii);
-            // Console.WriteLine($"[DEBUG] After LastDigitsRegex (fileBase): matches.Count = {mm.Count}");
             if (mm.Count > 0) {
                 numero = mm[^1].Groups[1].Value;
-                // Console.WriteLine($"[DEBUG] After LastDigitsRegex (fileBase) - set: numero = '{numero}'");
             }
         }
 
         if (string.IsNullOrWhiteSpace(numero))
         {
+            // Only fall back to last digits in text if it doesn't look like a year (simple heuristic)
             var mm = LastDigitsRegex.Matches(ToAscii(allText));
-            // Console.WriteLine($"[DEBUG] After LastDigitsRegex (allText): matches.Count = {mm.Count}");
             if (mm.Count > 0) {
-                numero = mm[^1].Groups[1].Value;
-                // Console.WriteLine($"[DEBUG] After LastDigitsRegex (allText) - set: numero = '{numero}'");
+                var candidate = mm[^1].Groups[1].Value;
+                if (!IsLikelyYear(candidate))
+                {
+                    numero = candidate;
+                }
+                else if (mm.Count > 1)
+                {
+                    // Try the one before
+                    numero = mm[^2].Groups[1].Value;
+                }
             }
         }
+        
         if (string.IsNullOrWhiteSpace(numero))
             numero = "DESCONHECIDO";
-        // Console.WriteLine($"[DEBUG] Final numero: '{numero}'");
 
         string Grab1(string pattern) =>
             Regex.Match(allText, pattern, RegexOptions.Multiline | RegexOptions.IgnoreCase)
                  .Groups[1].Value.Trim();
 
         var codigo  = Grab1(@"C(?:ó|o)digo(?:\s*do\s*Produto)?\s*[:\-]\s*([A-Z0-9\.\-]+)");
-        var descr   = Grab1(@"Descri[cç][aã]o\s*[:\-]\s*(.+?)\r?$");
         
-        // Flexible client extraction
-        var cliente = Grab1(@"(?:Cliente|Raz[ãa]o\s*Social|Sacado)\s*[:\-]?\s*(?:[\r\n]+\s*)?([^\r\n]+)");
+        // Fallback for code (13 digits)
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            var matchCode = Regex.Match(allText, @"(?m)^\s*(\d{13})\s*$");
+            if (matchCode.Success)
+            {
+                codigo = matchCode.Groups[1].Value;
+            }
+        }
 
-        // Fallback: If client seems to be a header/label captured by mistake (columnar layout issue)
+        var descr   = Grab1(@"Descri[cç][aã]o\s*[:\-]\s*(.+?)\r?$");
+                // Fallback for description: Look for long all-caps line or DESTACADOR...
+                if (string.IsNullOrWhiteSpace(descr))
+                {
+                     var matchDesc = Regex.Match(allText, @"(?m)^(DESTACADOR\s+.+)$");
+                     if (matchDesc.Success)
+                     {
+                         descr = matchDesc.Groups[1].Value.Trim();
+                     }
+                }
+        var cliente = Grab1(@"(?:Cliente|Raz[ãa]o\s*Social|Sacado)\s*[:\-]?\s*(?:[
+]+\s*)?([^\r\n]+)");
+
+        // Fallback: If client seems to be a header/label captured by mistake
         if (string.IsNullOrWhiteSpace(cliente) || 
             cliente.Contains("Razão Social", StringComparison.OrdinalIgnoreCase) || 
             cliente.Contains("Cliente", StringComparison.OrdinalIgnoreCase) ||
             cliente.Contains("Sacado", StringComparison.OrdinalIgnoreCase))
         {
-            // Strategy: Find header "Cód Cliente Nome/Razão Social" and look for the value line below it.
-            // Value line pattern: "01276 YCAR ARTES GRÁFICAS..." (Digits Space Letter...)
             try 
             {
                 var headerMatch = Regex.Match(allText, @"C(?:ó|o)d(?:igo)?\s*Cliente\s*Nome/Raz[ãa]o\s*Social", RegexOptions.IgnoreCase);
@@ -230,10 +261,8 @@ public static class PdfParser
                             line = line.Trim();
                             if (!string.IsNullOrWhiteSpace(line))
                             {
-                                // Pattern: Starts with digits, space, then a letter (to avoid dates like 12/11/2025)
                                 if (Regex.IsMatch(line, @"^\d+\s+[A-Z\u00C0-\u00FF]", RegexOptions.IgnoreCase))
                                 {
-                                    // Extract the name part (Group 1)
                                     var m = Regex.Match(line, @"^\d+\s+(.+)$");
                                     if (m.Success)
                                     {
@@ -247,22 +276,15 @@ public static class PdfParser
                     }
                 }
             }
-            catch 
-            {
-                // Ignore errors in fallback
-            }
+            catch {}
         }
         
-        if (string.IsNullOrWhiteSpace(cliente))
-        {
-            Console.WriteLine($"[PdfParser] WARN: Cliente não encontrado na OP {numero}. Dump do texto (inicio):");
-            Console.WriteLine(allText.Length > 600 ? allText[..600] : allText);
-        }
-
         var dataRaw = Grab1(@"Data\s*[:\-]\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{2,4})");
         var dataIso = ToIsoDate(dataRaw);
 
-        var matBlock = MateriaPrimaBlockRegex.Match(allText).Groups[1].Value;
+        var matBlockMatch = MateriaPrimaBlockRegex.Match(allText);
+        string matBlock = matBlockMatch.Success ? matBlockMatch.Groups[1].Value : string.Empty;
+        
         var materiais = Regex.Matches(matBlock, @"[^\r\n]+")
             .Select(m => m.Value.Trim())
             .Where(s => s.Length > 0)
@@ -282,8 +304,6 @@ public static class PdfParser
                 emborrachada = true;
             else if (search.Contains("EMBORRACHAD") || Regex.IsMatch(search, @"REVESTI(?:MENTO)?\s+DE\s+BORRACHA", RegexOptions.IgnoreCase))
                 emborrachada = true;
-            if (materiais.Count == 0 && emborrachada)
-                Console.WriteLine($"[PdfParser] Materiais vazio, mas fallback achou BORRACHA (OP={numero})");
         }
 
         bool hasObservacoesBlock = false;
@@ -314,23 +334,18 @@ public static class PdfParser
                 usuario = rawUsuario;
         }
         
-        // Extract address and hours
         var enderecosSugeridos = ExtractAddresses(allText, attr.ModalidadeEntrega);
 
-        // Extract new fields
         var cnpjCpf = Grab1(CnpjCpfRegex.ToString());
         var inscricaoEstadual = Grab1(InscricaoEstadualRegex.ToString());
-
         var telefone = Grab1(TelefoneRegex.ToString());
-
         var email = Grab1(EmailRegex.ToString());
-        var cep = Grab1(CepRegex.ToString());
         
+        // No explicit alias extraction
         var aliases = new List<string>();
-        // No explicit alias extraction logic, but could be added here if OP has alias field.
 
         string? dataUltimoServico = attr.DataEntregaIso != null && attr.HoraEntrega != null 
-             ? $"{attr.DataEntregaIso}T{attr.HoraEntrega}:00" 
+             ? $"{attr.DataEntregaIso}T{attr.HoraEntrega}:00"
              : (attr.DataEntregaIso != null ? $"{attr.DataEntregaIso}T00:00:00" : null);
              
         return new ParsedOp(
@@ -362,23 +377,29 @@ public static class PdfParser
         );
     }
 
+    private static bool IsLikelyYear(string val)
+    {
+        if (int.TryParse(val, out var n))
+        {
+            return n >= 2020 && n <= 2030;
+        }
+        return false;
+    }
 
     private static List<EnderecoSugerido> ExtractAddresses(string allText, string? modalidadeEntrega)
     {
         var enderecosSugeridos = new List<EnderecoSugerido>();
         
-        // Find the line that looks like the unstructured address, usually after "CEP Endereço..." header
         var headerLineMatch = Regex.Match(allText, @"CEP\s*Endere[cç]o(?:\s*\(rua,\s*nº,\s*complemento,\s*bairro\))?\s*Cidade/UF", RegexOptions.IgnoreCase);
         if (headerLineMatch.Success)
         {
             var searchArea = allText.Substring(headerLineMatch.Index + headerLineMatch.Length);
-            // Limit search area to the next few lines
             var linesList = new List<string>();
             using (var reader = new StringReader(searchArea))
             {
                 string? line;
                 int count = 0;
-                while ((line = reader.ReadLine()) != null && count < 5) // Read up to 5 lines after the header
+                while ((line = reader.ReadLine()) != null && count < 5) 
                 {
                     if (Regex.IsMatch(line, @"^\s*(?:Email|CNPJ|Inscri[cç][aã]o|Telefone|Data)\b", RegexOptions.IgnoreCase))
                         break;
@@ -400,32 +421,31 @@ public static class PdfParser
                 string? cidade = null;
                 string? uf = null;
 
-                // Further parse the addressRemainder to extract Logradouro, Bairro, Cidade, UF
-                // Strategy: Try to match with Bairro (hyphen separator) first. If that fails, try without Bairro.
-                
-                // Pattern 1: With Bairro (Requires " - ")
-                var matchWithBairro = Regex.Match(addressRemainder, 
-                    @"(?i)^(.+?)\s+-\s+([^\r\n]+?)\s+([A-Z\u00C0-\u00FF].*?)\/([A-Z]{2})$", RegexOptions.IgnoreCase);
+                // Strategy 1: Explicit " - " separator (Logradouro - Bairro Cidade/UF)
+                // Use greedy Bairro capture to eat until the City (which is anchored by /UF)
+                var matchSep = Regex.Match(addressRemainder, 
+                    @"(?i)^(.+?)\s+-\s+([^\r\n]+?)\s+([A-Z\u00C0-\u00FF][\w\s]*?)\/([A-Z]{2})$", RegexOptions.IgnoreCase);
 
-                if (matchWithBairro.Success)
+                if (matchSep.Success)
                 {
-                    logradouro = NormalizeSpaces(matchWithBairro.Groups[1].Value);
-                    bairro = NormalizeSpaces(matchWithBairro.Groups[2].Value);
-                    cidade = NormalizeSpaces(matchWithBairro.Groups[3].Value);
-                    uf = NormalizeSpaces(matchWithBairro.Groups[4].Value);
+                    logradouro = NormalizeSpaces(matchSep.Groups[1].Value);
+                    bairro = NormalizeSpaces(matchSep.Groups[2].Value);
+                    cidade = NormalizeSpaces(matchSep.Groups[3].Value);
+                    uf = NormalizeSpaces(matchSep.Groups[4].Value);
                 }
                 else
                 {
-                    // Pattern 2: Without Bairro (Logradouro City/UF)
-                    var matchNoBairro = Regex.Match(addressRemainder, 
-                        @"(?i)^(.+?)\s+([A-Z\u00C0-\u00FF].*?)\/([A-Z]{2})$", RegexOptions.IgnoreCase);
+                    // Strategy 2: No separator (Logradouro Cidade/UF)
+                    // We cannot reliably extract Bairro here without a dictionary, so we assume no Bairro or part of Logradouro.
+                    var matchNoSep = Regex.Match(addressRemainder, 
+                        @"(?i)^(.+?)\s+([A-Z\u00C0-\u00FF][\w\s]*?)\/([A-Z]{2})$", RegexOptions.IgnoreCase);
                     
-                    if (matchNoBairro.Success)
+                    if (matchNoSep.Success)
                     {
-                        logradouro = NormalizeSpaces(matchNoBairro.Groups[1].Value);
+                        logradouro = NormalizeSpaces(matchNoSep.Groups[1].Value);
                         bairro = null;
-                        cidade = NormalizeSpaces(matchNoBairro.Groups[2].Value);
-                        uf = NormalizeSpaces(matchNoBairro.Groups[3].Value);
+                        cidade = NormalizeSpaces(matchNoSep.Groups[2].Value);
+                        uf = NormalizeSpaces(matchNoSep.Groups[3].Value);
                     }
                 }
                 
@@ -523,7 +543,7 @@ public static class PdfParser
             string? rawTime = inl.Groups[2].Success ? inl.Groups[2].Value.Trim() : null;
             var iso = ToIsoDate(AjustaAnoSeNecessario(rawDate, dataOpIso, fullText));
             if (iso != null) { result.DataEntregaIso = iso; }
-            if (!string.IsNullOrWhiteSpace(rawTime) && TimeSpan.TryParseExact(rawTime, new[] { "H\\:mm", "HH\\:mm" }, CultureInfo.InvariantCulture, out var tsIn))
+            if (!string.IsNullOrWhiteSpace(rawTime) && TimeSpan.TryParseExact(rawTime, new[] { @"H\:mm", @"HH\:mm" }, CultureInfo.InvariantCulture, out var tsIn))
                 result.HoraEntrega = tsIn.ToString(@"hh\:mm");
         }
         else
@@ -540,7 +560,7 @@ public static class PdfParser
             if (mhr.Success)
             {
                 string rawh = mhr.Groups[1].Value.Trim();
-                if (TimeSpan.TryParseExact(rawh, new[] { "H\\:mm", "HH\\:mm" }, CultureInfo.InvariantCulture, out var ts))
+                if (TimeSpan.TryParseExact(rawh, new[] { @"H\:mm", @"HH\:mm" }, CultureInfo.InvariantCulture, out var ts))
                     result.HoraEntrega = ts.ToString(@"hh\:mm");
             }
         }
