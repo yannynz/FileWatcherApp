@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TestPdfParser")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+dc0ee2462a1f588ef2b5385e16234e2dfd2407a7")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+56a668b95e76bd77a57984147e8ed9173199a934")]
 [assembly: System.Reflection.AssemblyProductAttribute("TestPdfParser")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TestPdfParser")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

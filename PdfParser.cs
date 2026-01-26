@@ -424,7 +424,7 @@ public static class PdfParser
                 // Strategy 1: Explicit " - " separator (Logradouro - Bairro Cidade/UF)
                 // Use greedy Bairro capture to eat until the City (which is anchored by /UF)
                 var matchSep = Regex.Match(addressRemainder, 
-                    @"(?i)^(.+?)\s+-\s+([^\r\n]+?)\s+([A-Z\u00C0-\u00FF][\w\s]*?)\/([A-Z]{2})$", RegexOptions.IgnoreCase);
+                    @"(?i)^(.+?)\s+-\s+([^\r\n]+)\s+([A-Z\u00C0-\u00FF][\w\s]*?)\/([A-Z]{2})$", RegexOptions.IgnoreCase);
 
                 if (matchSep.Success)
                 {
@@ -432,6 +432,33 @@ public static class PdfParser
                     bairro = NormalizeSpaces(matchSep.Groups[2].Value);
                     cidade = NormalizeSpaces(matchSep.Groups[3].Value);
                     uf = NormalizeSpaces(matchSep.Groups[4].Value);
+
+                    // Heuristic: if city collapsed to a single token and bairro contains a city prefix,
+                    // move the tail of bairro to city (e.g. "PAULICEIA SAO BERNARDO DO CAMPO/SP").
+                    var cityTokens = cidade.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    var bairroTokens = bairro.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (cityTokens.Length == 1 && bairroTokens.Length >= 2)
+                    {
+                        static bool IsCityPrefix(string token)
+                        {
+                            return token.Equals("SAO", StringComparison.OrdinalIgnoreCase)
+                                || token.Equals("SANTO", StringComparison.OrdinalIgnoreCase)
+                                || token.Equals("SANTA", StringComparison.OrdinalIgnoreCase)
+                                || token.Equals("NOVA", StringComparison.OrdinalIgnoreCase)
+                                || token.Equals("VILA", StringComparison.OrdinalIgnoreCase)
+                                || token.Equals("BOM", StringComparison.OrdinalIgnoreCase)
+                                || token.Equals("BOA", StringComparison.OrdinalIgnoreCase);
+                        }
+
+                        var idx = Array.FindIndex(bairroTokens, IsCityPrefix);
+                        if (idx > 0)
+                        {
+                            var newBairro = string.Join(" ", bairroTokens.Take(idx));
+                            var newCidade = string.Join(" ", bairroTokens.Skip(idx).Concat(cityTokens));
+                            bairro = newBairro;
+                            cidade = newCidade;
+                        }
+                    }
                 }
                 else
                 {
